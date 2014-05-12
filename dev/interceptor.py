@@ -167,6 +167,7 @@ class Interceptor(app_manager.RyuApp):
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
         global DHCP_SERVER_OUT_PORT
+        global DHCP_SERVER_DISCOVERED
         
         msg = ev.msg
         datapath = msg.datapath
@@ -188,9 +189,9 @@ class Interceptor(app_manager.RyuApp):
         dhcp_d = self.detect_dhcp_discover(d_pkt)
         dhcp_o = self.detect_dhcp_offer(d_pkt)
         
-        if eth.src == DHCP_SERVER_MAC and !DHCP_SERVER_DISCOVERED:
+        if eth.src == DHCP_SERVER_MAC and not DHCP_SERVER_DISCOVERED:
             DHCP_SERVER_OUT_PORT = in_port
-            self.logge.info("[ADMIN] Discovered the local DHCP server source port on local bridge -> port %s",DHCP_SERVER_OUT_PORT)
+            self.logger.info("[ADMIN] Discovered the local DHCP server source port on local bridge -> port %s",DHCP_SERVER_OUT_PORT)
             DHCP_SERVER_DISCOVERED = True
         
         if dhcp_d and DHCP_SERVER_DISCOVERED:
