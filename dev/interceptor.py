@@ -204,7 +204,7 @@ class Interceptor(app_manager.RyuApp):
             #out_port = self.mac_to_port[dpid][DHCP_SERVER_MAC]
             #print("DHCP_SERVER_OUT_PORT = '%d'",DHCP_SERVER_OUT_PORT)
             actions = [parser.OFPActionOutput(DHCP_SERVER_OUT_PORT)]
-            match = parser.OFPMatch(in_port=in_port, eth_src=eth.src, out_port=DHCP_SERVER_OUT_PORT, eth_dst=DHCP_SERVER_MAC)
+            match = parser.OFPMatch(in_port=in_port, eth_src=eth.src, eth_dst=DHCP_SERVER_MAC)
             self.add_flow(datapath, 1, match, actions)
             
             data = None
