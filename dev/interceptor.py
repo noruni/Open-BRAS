@@ -72,7 +72,7 @@ class Interceptor(app_manager.RyuApp):
         parser = dp.ofproto_parser
         if ev.state == MAIN_DISPATCHER:
             self.logger.info("Switch entered: %s", dp.id)
-            self.bindToDHCPServer(dp,ofproto,parser)
+            self.discover_dhcp_server(dp,ofproto,parser)
         
         elif ev.state == DEAD_DISPATCHER:
             if dp.id is None:
@@ -91,8 +91,7 @@ class Interceptor(app_manager.RyuApp):
                                 match=match, instructions=inst)
         datapath.send_msg(mod)
 
-    
-    def bindToDHCPServer(self, datapath, ofproto, parser):
+    def discover_dhcp_server(self, datapath, ofproto, parser):
         ##arp for the DHCP server first, to learn its out port
         ##form the ARP req
         a_hwtype = 1
@@ -128,40 +127,115 @@ class Interceptor(app_manager.RyuApp):
                 protocols[p.protocol_name] = p
             else:
                 protocols['payload'] = p
-        #print protocols
         return protocols
+    
+    def buffer_from_packet(self,pkt):
+        protocols = {}
+        packetIndex = {}
+        i=1
+        for p in pkt:
+            if hasattr(p, 'protocol_name'):
+                protocols[p.protocol_name] = p
+                packetIndex[i] = p
+            else:
+                protocols['payload'] = p
+                packetIndex[i] = p
+            i+=1
+        try:
+            pi = packetIndex[i-1]
+            testVal = pi[0]
+            return pi
+        except Exception:
+            return None 
     
     def detect_dhcp_discover(self, pkt):
         protocols = self.get_protocols(pkt)
         
         try:
-			#find the encapsulated ip data inside the packet
-			ipv4 = protocols['ipv4']
-			if ipv4:
-				if ipv4.proto == inet.IPPROTO_UDP:
-					#self.logger.info("packet contains udp src port of '%s' and udp dst port of '%s'", u.src_port, u.dst_port)
-					u = protocols['udp']
-                    #self.logger.info("packet ip addressing is src: '%s' dst: '%s'", ipv4.src, ipv4.dst)
-					if u.src_port == 68 and u.dst_port == 67 and ipv4.dst == '255.255.255.255':
-						#self.logger.info("packet likely contains a dhcp discover!")
-						return True
-			else:
-				return False
-        except Exception:
+            #find the encapsulated ip data inside the packet
+            ipv4 = protocols['ipv4']
+            if ipv4:
+                if ipv4.proto == inet.IPPROTO_UDP:
+                    u = protocols['udp']
+                    if u.src_port == 68 and u.dst_port == 67 and ipv4.dst == '255.255.255.255':
+                        pkt_in = self.buffer_from_packet(pkt)
+                        if pkt_in:
+                            print pkt_in
+                            buf = pkt_in.tostring
+                            dh = dhcp.dhcp.parser(buf)
+                            print dh.op
+                        return True
+            else:
+                return False
+        except Exception as e:
+            print e
             return False
     
     def detect_dhcp_offer(self,pkt):
-		protocols = self.get_protocols(pkt)
-		
-		try:
-			ipv4 = protocols['ipv4']
-			if ipv4:
-				if ipv4.proto == inet.IPPROTO_UDP:
-					u = protocols['udp']
-					if u.src_port == 67 and u.dst_port == 68:# and ipv4.dst == '255.255.255.255.':
-						return True
-		except Exception:
-			return False
+        protocols = self.get_protocols(pkt)
+
+        try:
+            ipv4 = protocols['ipv4']
+            if ipv4:
+                if ipv4.proto == inet.IPPROTO_UDP:
+                    u = protocols['udp']
+                    if u.src_port == 67 and u.dst_port == 68 and ipv4.src == DHCP_SERVER_IP:
+                        pkt_in = self.buffer_from_packet(pkt)
+                        if pkt_in:
+                            print pkt_in
+                            buf = pkt_in.tostring
+                            dh = dhcp.dhcp.parser(buf)
+                            print dh.op
+                        return True
+            else:
+                return False
+        except Exception as e:
+            print e
+            return False
+            
+    def detect_dhcp_request(self, pkt):
+        protocols = self.get_protocols(pkt)
+        
+        try:
+            ipv4 = protocols['ipv4']
+            if ipv4:
+                if ipv4.proto == inet.IPPROTO_UDP:
+                    u = protocols['udp']
+                    if u.src_port == 68 and u.dst_port == 67:
+                        pkt_in = self.buffer_from_packet(pkt)
+                        if pkt_in:
+                            print pkt_in
+                            buf = pkt_in.tostring
+                            dh = dhcp.dhcp.parser(buf)
+                            print dh.op
+                        return True
+            else:
+                return False
+        except Exception as e:
+            print e
+            return False
+            
+    def detect_dhcp_reply(self, pkt):
+        protocols = self.get_protocols(pkt)
+ 
+        try:
+            ipv4 = protocols['ipv4']
+            if ipv4:
+                if ipv4.proto == inet.IPPROTO_UDP:
+                    u = protocols['udp']
+                    if u.src_port == 67 and u.dst_port == 68 and ipv4.src == DHCP_SERVER_IP:
+                        pkt_in = self.buffer_from_packet(pkt)
+                        if pkt_in:
+                            print pkt_in
+                            buf = pkt_in.tostring
+                            dh = dhcp.dhcp.parser(buf)
+                            print dh.op
+                        return True
+            else:
+                return False
+        except Exception as e:
+            print e
+            return False
     
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
@@ -187,6 +261,8 @@ class Interceptor(app_manager.RyuApp):
         d_pkt = packet.Packet(array.array('B', msg.data))
         dhcp_d = self.detect_dhcp_discover(d_pkt)
         dhcp_o = self.detect_dhcp_offer(d_pkt)
+        dhcp_r = self.detect_dhcp_request(d_pkt)
+        dhcp_a = self.detect_dhcp_reply(d_pkt)
         
         if eth.src == DHCP_SERVER_MAC and not DHCP_SERVER_DISCOVERED:
             DHCP_SERVER_OUT_PORT = in_port
@@ -237,8 +313,10 @@ class Interceptor(app_manager.RyuApp):
             datapath.send_msg(out)
 
         if dhcp_r and DHCP_SERVER_DISCOVERED:
+            print"blah"
             #do dhcp request stuff
 
         if dhcp_a and DHCP_SERVER_DISCOVERED:
+            print"blah2"
             #do dhcp reply stuff
 
