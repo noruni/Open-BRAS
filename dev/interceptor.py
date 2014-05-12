@@ -139,10 +139,9 @@ class Interceptor(app_manager.RyuApp):
 			ipv4 = protocols['ipv4']
 			if ipv4:
 				if ipv4.proto == inet.IPPROTO_UDP:
-					#self.logger.info("packet is of type udp, let's try to deassemble it")
-					u = protocols['udp']
 					#self.logger.info("packet contains udp src port of '%s' and udp dst port of '%s'", u.src_port, u.dst_port)
-					#self.logger.info("packet ip addressing is src: '%s' dst: '%s'", ipv4.src, ipv4.dst)
+					u = protocols['udp']
+                    #self.logger.info("packet ip addressing is src: '%s' dst: '%s'", ipv4.src, ipv4.dst)
 					if u.src_port == 68 and u.dst_port == 67 and ipv4.dst == '255.255.255.255':
 						#self.logger.info("packet likely contains a dhcp discover!")
 						return True
@@ -159,7 +158,7 @@ class Interceptor(app_manager.RyuApp):
 			if ipv4:
 				if ipv4.proto == inet.IPPROTO_UDP:
 					u = protocols['udp']
-					if u.src_port == 67 and u.dst_port == 68 and ipv4.dst == '255.255.255.255.':
+					if u.src_port == 67 and u.dst_port == 68:# and ipv4.dst == '255.255.255.255.':
 						return True
 		except Exception:
 			return False
@@ -216,10 +215,30 @@ class Interceptor(app_manager.RyuApp):
                                   in_port=in_port, actions=actions, data=data)
             datapath.send_msg(out)
         
-        if dhcp_o:
-            self.logger.info("[ADMIN] [DHCPO] DHCP Offer sent from DHCP server to client destination MAC: '%s'", eth.dst)
-        
-        #dhcp_o
-        #dhcp_r
-        #dhcp_a
+        if dhcp_o and DHCP_SERVER_DISCOVERED:
+            protocols = self.get_protocols(d_pkt)
+            ipv4 = protocols['ipv4']
+            self.logger.info("[ADMIN] [DHCPO] DHCP Offer of '%s' sent from DHCP server to client destination MAC: '%s'", ipv4.dst, eth.dst)
+            
+            if eth.dst in self.mac_to_port[dpid]:
+                out_port = self.mac_to_port[dpid][eth.dst]
+            else:
+                out_port = ofproto.OFPP_FLOOD
+
+            actions = [parser.OFPActionOutput(out_port)]
+
+            data = None
+            
+            if msg.buffer_id == ofproto.OFP_NO_BUFFER:
+                data = msg.data
+            
+            out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
+                                  in_port=in_port, actions=actions, data=data)
+            datapath.send_msg(out)
+
+        if dhcp_r and DHCP_SERVER_DISCOVERED:
+            #do dhcp request stuff
+
+        if dhcp_a and DHCP_SERVER_DISCOVERED:
+            #do dhcp reply stuff
 
