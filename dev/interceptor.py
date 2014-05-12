@@ -1,5 +1,5 @@
 # Copyright (C) 2011 Nippon Telegraph and Telephone Corporation.
-#
+##
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -129,25 +129,9 @@ class Interceptor(app_manager.RyuApp):
                 protocols['payload'] = p
         return protocols
     
-    def buffer_from_packet(self,pkt):
-        protocols = {}
-        packetIndex = {}
-        i=1
-        for p in pkt:
-            if hasattr(p, 'protocol_name'):
-                protocols[p.protocol_name] = p
-                packetIndex[i] = p
-            else:
-                protocols['payload'] = p
-                packetIndex[i] = p
-            i+=1
-        try:
-            pi = packetIndex[i-1]
-            testVal = pi[0]
-            return pi
-        except Exception:
-            return None 
+
     
+
     def detect_dhcp_discover(self, pkt):
         protocols = self.get_protocols(pkt)
         
@@ -158,17 +142,11 @@ class Interceptor(app_manager.RyuApp):
                 if ipv4.proto == inet.IPPROTO_UDP:
                     u = protocols['udp']
                     if u.src_port == 68 and u.dst_port == 67 and ipv4.dst == '255.255.255.255':
-                        pkt_in = self.buffer_from_packet(pkt)
-                        if pkt_in:
-                            print pkt_in
-                            buf = pkt_in.tostring
-                            dh = dhcp.dhcp.parser(buf)
-                            print dh.op
+
                         return True
             else:
                 return False
         except Exception as e:
-            print e
             return False
     
     def detect_dhcp_offer(self,pkt):
@@ -180,61 +158,40 @@ class Interceptor(app_manager.RyuApp):
                 if ipv4.proto == inet.IPPROTO_UDP:
                     u = protocols['udp']
                     if u.src_port == 67 and u.dst_port == 68 and ipv4.src == DHCP_SERVER_IP:
-                        pkt_in = self.buffer_from_packet(pkt)
-                        if pkt_in:
-                            print pkt_in
-                            buf = pkt_in.tostring
-                            dh = dhcp.dhcp.parser(buf)
-                            print dh.op
                         return True
             else:
                 return False
         except Exception as e:
-            print e
             return False
             
     def detect_dhcp_request(self, pkt):
         protocols = self.get_protocols(pkt)
-        
+
         try:
             ipv4 = protocols['ipv4']
             if ipv4:
                 if ipv4.proto == inet.IPPROTO_UDP:
                     u = protocols['udp']
                     if u.src_port == 68 and u.dst_port == 67:
-                        pkt_in = self.buffer_from_packet(pkt)
-                        if pkt_in:
-                            print pkt_in
-                            buf = pkt_in.tostring
-                            dh = dhcp.dhcp.parser(buf)
-                            print dh.op
                         return True
             else:
                 return False
         except Exception as e:
-            print e
             return False
             
     def detect_dhcp_reply(self, pkt):
         protocols = self.get_protocols(pkt)
- 
+
         try:
             ipv4 = protocols['ipv4']
             if ipv4:
                 if ipv4.proto == inet.IPPROTO_UDP:
                     u = protocols['udp']
                     if u.src_port == 67 and u.dst_port == 68 and ipv4.src == DHCP_SERVER_IP:
-                        pkt_in = self.buffer_from_packet(pkt)
-                        if pkt_in:
-                            print pkt_in
-                            buf = pkt_in.tostring
-                            dh = dhcp.dhcp.parser(buf)
-                            print dh.op
                         return True
             else:
                 return False
         except Exception as e:
-            print e
             return False
     
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
@@ -250,6 +207,8 @@ class Interceptor(app_manager.RyuApp):
     
         
         pkt = packet.Packet(msg.data)
+
+        
         eth = pkt.get_protocols(ethernet.ethernet)[0]
         
         dpid = datapath.id
@@ -259,6 +218,40 @@ class Interceptor(app_manager.RyuApp):
         
         # detailed packet
         d_pkt = packet.Packet(array.array('B', msg.data))
+        this_pkt = packet.Packet(array.array('c', msg.data))
+        
+        print "data"
+        if this_pkt:
+            for p in this_pkt:
+                print str(p)
+                try:
+                    dh = dhcp.dhcp.parser(str(this_pkt))
+                except Exception as ex1:
+                    print "Exception1! " + str(ex1)
+                try:
+                    dh1 = dhcp.dhcp.parser(this_pkt)
+                except Exception as ex2:
+                    print "Exception2! " + str(ex2)
+                try:
+                    dh2 = dhcp.dhcp.parser(msg.data)
+                except Exception as ex3:
+                    print "Exception3! " + str(ex3)
+                try:
+                    dh3 = dhcp.dhcp.parser(str(msg.data))
+                except Exception as ex4:
+                    print "Exception4! " + str(ex4)
+                try:
+                    dh4 = dhcp.dhcp.parser(str(p))
+                except Exception as ex5:
+                    print "Exception5! " + str(ex5)
+                try:
+                    dh5 = dhcp.dhcp.parser(p)
+                except Exception as ex6:
+                    print "Exception6! " + str(ex6)
+        
+        print "//data"
+
+        
         dhcp_d = self.detect_dhcp_discover(d_pkt)
         dhcp_o = self.detect_dhcp_offer(d_pkt)
         dhcp_r = self.detect_dhcp_request(d_pkt)
