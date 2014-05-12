@@ -38,6 +38,7 @@ CONTROLLER_SPECIAL_IP = '192.168.100.2'
 DHCP_SERVER_IP = '192.168.100.3'
 DHCP_SERVER_MAC = 'de:ad:be:ef:ba:be'
 DHCP_SERVER_OUT_PORT = -1
+DHCP_SERVER_DISCOVERED = False
 
 
 
@@ -118,6 +119,7 @@ class Interceptor(app_manager.RyuApp):
         datapath.send_msg(out)
         dpid = datapath.id
         self.logger.info("packet out dpid:'%s' src:'%s' dst:'%s' out_port:'OFPP_FLOOD'", dpid, CONTROLLER_SPECIAL_MAC, DHCP_SERVER_MAC)
+        self.logger.info("[ADMIN] Attempting to discover DHCP server... ")
     
     def get_protocols(self, pkt):
         protocols = {}
@@ -186,11 +188,12 @@ class Interceptor(app_manager.RyuApp):
         dhcp_d = self.detect_dhcp_discover(d_pkt)
         dhcp_o = self.detect_dhcp_offer(d_pkt)
         
-        if eth.src == DHCP_SERVER_MAC:
+        if eth.src == DHCP_SERVER_MAC and !DHCP_SERVER_DISCOVERED:
             DHCP_SERVER_OUT_PORT = in_port
-            self.logger.info("[ADMIN] Discovered the local DHCP server source port on local bridge -> port %s",DHCP_SERVER_OUT_PORT)
+            self.logge.info("[ADMIN] Discovered the local DHCP server source port on local bridge -> port %s",DHCP_SERVER_OUT_PORT)
+            DHCP_SERVER_DISCOVERED = True
         
-        if dhcp_d and DHCP_SERVER_OUT_PORT != -1:
+        if dhcp_d and DHCP_SERVER_DISCOVERED:
             self.logger.info("[ADMIN] [DHCPD] DHCP Discover came in from client source MAC: '%s'", eth.src)
             ##create a flow between requester and dhcp server
             
