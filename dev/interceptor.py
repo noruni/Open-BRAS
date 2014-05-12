@@ -33,7 +33,9 @@ from ryu.lib import addrconv
 
 CONTROLLER_IP = '192.168.100.1'
 CONTROLLER_MAC = '5a:97:c4:9b:8e:43'
-DHCP_SERVER_IP = '192.168.100.2'
+CONTROLLER_SPECIAL_MAC = 'be:ef:be:ef:be:ef'
+CONTROLLER_SPECIAL_IP = '192.168.100.2'
+DHCP_SERVER_IP = '192.168.100.3'
 DHCP_SERVER_MAC = 'de:ad:be:ef:ba:be'
 DHCP_SERVER_OUT_PORT = -1
 
@@ -69,9 +71,7 @@ class Interceptor(app_manager.RyuApp):
         parser = dp.ofproto_parser
         if ev.state == MAIN_DISPATCHER:
             self.logger.info("Switch entered: %s", dp.id)
-            time.sleep(2)
             self.bindToDHCPServer(dp,ofproto,parser)
-            #self.send_port_stats_request(dp)
         
         elif ev.state == DEAD_DISPATCHER:
             if dp.id is None:
@@ -98,15 +98,15 @@ class Interceptor(app_manager.RyuApp):
         a_proto = ether.ETH_TYPE_IP
         a_hlen = 6
         a_plen = 4
-        a_opcode = 1 #request
-        a_srcMac = CONTROLLER_MAC
-        a_srcIP = CONTROLLER_IP
+        a_opcode = 1 #request1
+        a_srcMAC = CONTROLLER_SPECIAL_MAC
+        a_srcIP = CONTROLLER_SPECIAL_IP
         a_dstMAC = DHCP_SERVER_MAC
         a_dstIP = DHCP_SERVER_IP
         
         p = packet.Packet()
-        e = ethernet.ethernet(DHCP_SERVER_MAC,CONTROLLER_MAC,ether.ETH_TYPE_ARP)
-        a = arp.arp(a_hwtype,a_proto,a_hlen,a_plen,a_opcode,a_srcMac,a_srcIP,a_dstMAC,a_dstIP)
+        e = ethernet.ethernet(DHCP_SERVER_MAC,CONTROLLER_SPECIAL_MAC,ether.ETH_TYPE_ARP)
+        a = arp.arp(a_hwtype,a_proto,a_hlen,a_plen,a_opcode,a_srcMAC,a_srcIP,a_dstMAC,a_dstIP)
         p.add_protocol(e)
         p.add_protocol(a)
         p.serialize()
@@ -116,10 +116,7 @@ class Interceptor(app_manager.RyuApp):
         out = parser.OFPPacketOut(datapath=datapath, buffer_id=0xffffffff,
                                       in_port=ofproto.OFPP_CONTROLLER, actions=actions, data=p.data)
         datapath.send_msg(out)
-        self.logger.info("outgoing ARP request packet")
-        match = parser.OFPMatch(eth_dst=CONTROLLER_MAC,eth_src=DHCP_SERVER_MAC)
-        actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER)]
-        self.add_flow(datapath, 0, match, actions)
+        self.logger.info("packet out dpid:'%s' src:'%s' dst:'%s' out_port:'OFPP_FLOOD'", dpid, CONTROLLER_SPECIAL_MAC, DHCP_SERVER_MAC)
     
     def get_protocols(self, pkt):
         protocols = {}
@@ -128,7 +125,7 @@ class Interceptor(app_manager.RyuApp):
                 protocols[p.protocol_name] = p
             else:
                 protocols['payload'] = p
-        p#rint protocols
+        #print protocols
         return protocols
     
     def detect_dhcp_discover(self, pkt):
@@ -173,9 +170,7 @@ class Interceptor(app_manager.RyuApp):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
         in_port = msg.match['in_port']
-        
-        #lets try it once we have received a packet?
-        self.send_port_stats_request(datapath)
+    
         
         pkt = packet.Packet(msg.data)
         eth = pkt.get_protocols(ethernet.ethernet)[0]
@@ -190,26 +185,12 @@ class Interceptor(app_manager.RyuApp):
         dhcp_d = self.detect_dhcp_discover(d_pkt)
         dhcp_o = self.detect_dhcp_offer(d_pkt)
         
-        print("ARP? ")
-        
-        try:
-            thisProto = self.get_protocols(d_pkt)
-            arp = thisProto['arp']
-            if arp:
-                print True
-                 #if arp.opcode == 2: #reply
-                self.logger.info("hwtype: %s, proto: %s, hlen: %d, plen: %d, opcode: %d, src_mac: %s,\
-                 src_ip: %s, dst_mac: %s, dst_ip: %s",arp.hwtype,arp.proto,arp.hlen,arp.plen, \
-                 arp.opcode,arp.src_mac,arp.src_ip,arp.dst_mac,arp.dst_ip)
-        except Exception:
-            print False
-        
         if eth.src == DHCP_SERVER_MAC:
             DHCP_SERVER_OUT_PORT = in_port
-            self.logger.info("discovered the dhcp server source port on local bridge -> port %s",DHCP_SERVER_OUT_PORT)
+            self.logger.info("[ADMIN] Discovered the local DHCP server source port on local bridge -> port %s",DHCP_SERVER_OUT_PORT)
         
         if dhcp_d and DHCP_SERVER_OUT_PORT != -1:
-            self.logger.info("dhcp discover came in from client src mac: '%s'", eth.src)
+            self.logger.info("[ADMIN] [DHCPD] DHCP Discover came in from client source MAC: '%s'", eth.src)
             ##create a flow between requester and dhcp server
             
             # learn a mac address to avoid flood etc
@@ -231,7 +212,7 @@ class Interceptor(app_manager.RyuApp):
             datapath.send_msg(out)
         
         if dhcp_o:
-            self.logger.info("dhcp offer sent from dhcp server to client dst mac: '%s'", eth.dst)
+            self.logger.info("[ADMIN] [DHCPO] DHCP Offer sent from DHCP server to client destination MAC: '%s'", eth.dst)
         
         #dhcp_o
         #dhcp_r
