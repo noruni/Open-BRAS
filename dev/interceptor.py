@@ -40,36 +40,28 @@ DHCP_SERVER_OUT_PORT = -1
 
 
 class Interceptor(app_manager.RyuApp):
-
+    
     
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
 
-
+    
     def __init__(self, *args, **kwargs):
         super(Interceptor, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
-        
 
-
+    
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
         datapath = ev.msg.datapath
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
-
-        # install table-miss flow entry
-        #
-        # We specify NO BUFFER to max_len of the output action due to
-        # OVS bug. At this moment, if we specify a lesser number, e.g.,
-        # 128, OVS will send Packet-In with invalid buffer_id and
-        # truncated packet data. In that case, we cannot output packets
-        # correctly.
+        
         match = parser.OFPMatch()
         actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER,
                                           ofproto.OFPCML_NO_BUFFER)]
         self.add_flow(datapath, 0, match, actions)
-        
 
+  
     @set_ev_cls(ofp_event.EventOFPStateChange, [MAIN_DISPATCHER, DEAD_DISPATCHER])
     def switch_enter_handler(self, ev):
         dp = ev.datapath
@@ -79,28 +71,29 @@ class Interceptor(app_manager.RyuApp):
             self.logger.info("Switch entered: %s", dp.id)
             time.sleep(2)
             self.bindToDHCPServer(dp,ofproto,parser)
-
+            #self.send_port_stats_request(dp)
+        
         elif ev.state == DEAD_DISPATCHER:
             if dp.id is None:
                 return
             self.logger.info("Switch left: %s", dp.id)
 
-
+    
     def add_flow(self, datapath, priority, match, actions):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
-
+        
         inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
                                              actions)]
-
+        
         mod = parser.OFPFlowMod(datapath=datapath, priority=priority,
                                 match=match, instructions=inst)
         datapath.send_msg(mod)
 
-
+    
     def bindToDHCPServer(self, datapath, ofproto, parser):
         ##arp for the DHCP server first, to learn its out port
-        ##form the ARP req 
+        ##form the ARP req
         a_hwtype = 1
         a_proto = ether.ETH_TYPE_IP
         a_hlen = 6
@@ -110,14 +103,14 @@ class Interceptor(app_manager.RyuApp):
         a_srcIP = CONTROLLER_IP
         a_dstMAC = DHCP_SERVER_MAC
         a_dstIP = DHCP_SERVER_IP
-
+        
         p = packet.Packet()
         e = ethernet.ethernet(DHCP_SERVER_MAC,CONTROLLER_MAC,ether.ETH_TYPE_ARP)
         a = arp.arp(a_hwtype,a_proto,a_hlen,a_plen,a_opcode,a_srcMac,a_srcIP,a_dstMAC,a_dstIP)
         p.add_protocol(e)
         p.add_protocol(a)
         p.serialize()
-
+        
         #send packet out
         actions = [parser.OFPActionOutput(ofproto.OFPP_FLOOD)]
         out = parser.OFPPacketOut(datapath=datapath, buffer_id=0xffffffff,
@@ -127,7 +120,7 @@ class Interceptor(app_manager.RyuApp):
         match = parser.OFPMatch(eth_dst=CONTROLLER_MAC,eth_src=DHCP_SERVER_MAC)
         actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER)]
         self.add_flow(datapath, 0, match, actions)
-
+    
     def get_protocols(self, pkt):
         protocols = {}
         for p in pkt:
@@ -135,9 +128,9 @@ class Interceptor(app_manager.RyuApp):
                 protocols[p.protocol_name] = p
             else:
                 protocols['payload'] = p
-#        print protocols
-        return protocols                
-
+        p#rint protocols
+        return protocols
+    
     def detect_dhcp_discover(self, pkt):
         protocols = self.get_protocols(pkt)
         
@@ -157,7 +150,7 @@ class Interceptor(app_manager.RyuApp):
 				return False
         except Exception:
             return False
-            
+    
     def detect_dhcp_offer(self,pkt):
 		protocols = self.get_protocols(pkt)
 		
@@ -170,32 +163,35 @@ class Interceptor(app_manager.RyuApp):
 						return True
 		except Exception:
 			return False
-
+    
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
-        global DHCP_SERVER_OUT_PORT 
-
+        global DHCP_SERVER_OUT_PORT
+        
         msg = ev.msg
         datapath = msg.datapath
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
         in_port = msg.match['in_port']
-
+        
+        #lets try it once we have received a packet?
+        self.send_port_stats_request(datapath)
+        
         pkt = packet.Packet(msg.data)
         eth = pkt.get_protocols(ethernet.ethernet)[0]
-
+        
         dpid = datapath.id
         self.mac_to_port.setdefault(dpid, {})
-
+        
         self.logger.info("packet in dpid:'%s' src:'%s' dst:'%s' in_port:'%s'", dpid, eth.src, eth.dst, in_port)
-
+        
         # detailed packet
         d_pkt = packet.Packet(array.array('B', msg.data))
         dhcp_d = self.detect_dhcp_discover(d_pkt)
         dhcp_o = self.detect_dhcp_offer(d_pkt)
         
-        print "ARP? "
-
+        print("ARP? ")
+        
         try:
             thisProto = self.get_protocols(d_pkt)
             arp = thisProto['arp']
@@ -211,32 +207,32 @@ class Interceptor(app_manager.RyuApp):
         if eth.src == DHCP_SERVER_MAC:
             DHCP_SERVER_OUT_PORT = in_port
             self.logger.info("discovered the dhcp server source port on local bridge -> port %s",DHCP_SERVER_OUT_PORT)
-
+        
         if dhcp_d and DHCP_SERVER_OUT_PORT != -1:
             self.logger.info("dhcp discover came in from client src mac: '%s'", eth.src)
             ##create a flow between requester and dhcp server
-
+            
             # learn a mac address to avoid flood etc
             self.mac_to_port[dpid][eth.src] = in_port
-
+            
             #out_port = self.mac_to_port[dpid][DHCP_SERVER_MAC]
             #print("DHCP_SERVER_OUT_PORT = '%d'",DHCP_SERVER_OUT_PORT)
             actions = [parser.OFPActionOutput(DHCP_SERVER_OUT_PORT)]
             match = parser.OFPMatch(in_port=in_port, eth_src=eth.src, out_port=DHCP_SERVER_OUT_PORT, eth_dst=DHCP_SERVER_MAC)
             self.add_flow(datapath, 1, match, actions)
-
+            
             data = None
             
             if msg.buffer_id == ofproto.OFP_NO_BUFFER:
                 data = msg.data
-
+            
             out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
                                   in_port=in_port, actions=actions, data=data)
             datapath.send_msg(out)
-
+        
         if dhcp_o:
             self.logger.info("dhcp offer sent from dhcp server to client dst mac: '%s'", eth.dst)
-
+        
         #dhcp_o
         #dhcp_r
         #dhcp_a
