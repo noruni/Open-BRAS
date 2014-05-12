@@ -116,7 +116,7 @@ class Interceptor(app_manager.RyuApp):
         out = parser.OFPPacketOut(datapath=datapath, buffer_id=0xffffffff,
                                       in_port=ofproto.OFPP_CONTROLLER, actions=actions, data=p.data)
         datapath.send_msg(out)
-        self.logger.info("packet out dpid:'%s' src:'%s' dst:'%s' out_port:'OFPP_FLOOD'", dpid, CONTROLLER_SPECIAL_MAC, DHCP_SERVER_MAC)
+        self.logger.info("packet out dpid:'%s' src:'%s' dst:'%s' out_port:'OFPP_FLOOD'", datapath, CONTROLLER_SPECIAL_MAC, DHCP_SERVER_MAC)
     
     def get_protocols(self, pkt):
         protocols = {}
