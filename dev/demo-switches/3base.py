@@ -1057,9 +1057,10 @@ class MySwitch(app_manager.RyuApp):
 					self.sendLLDPPacket(dp, p.port_no, p.hw_addr)
 
 			self.printme('%sPort: %010d\tState: 0x%08x\tName: %s\tMAC=%s' % (star, p.port_no, p.state, self.filter_non_printable(p.name.rstrip(chr(0x00)) + chr(0xff)).ljust(8, "-"), p.hw_addr ), 0, 1)
+            print(p.)
 
 			if (p.port_no == ofp.OFPP_LOCAL):
-				#self.printme("Learn MAC=%s on Port=NORMAL" % (haddr_to_str(p.hw_addr)))
+				self.printme("Learn MAC=%s on Port=NORMAL" % (p.hw_addr))
 				self.mac_to_port[dp][p.hw_addr]=dp.ofproto.OFPP_NORMAL	
 		#self.printme('OFPPortDescStatsReply received:\n\t%s' % (ports), dp)				
 		self.printme ("* indicates port is UP", 0, 1)
