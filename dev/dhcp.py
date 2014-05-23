@@ -176,6 +176,8 @@ class dhcp(packet_base.PacketBase):
 
     @classmethod
     def parser(cls, buf):
+        print "initial size of packet (bytes)"
+        print sys.getsizeof(buf)
         (op, htype, hlen, hops, xid, secs, flags, ciaddr, yiaddr,siaddr, giaddr, chaddr, dummy) = struct.unpack_from(cls._HLEN_UNPACK_STR, buf)
         print "op"
         print op
@@ -200,10 +202,10 @@ class dhcp(packet_base.PacketBase):
         print "giaddr"
         print addrconv.ipv4.bin_to_text(giaddr)
         print "chaddr"
-        print chaddr
+        print addrconv.mac.bin_to_text(chaddr)
         print "dummy"
         print dummy
-        #print addrconv.mac.bin_to_text(chaddr)
+
         buf = buf[cls._HLEN_UNPACK_LEN:]
         print "buf"
         print buf
@@ -216,7 +218,7 @@ class dhcp(packet_base.PacketBase):
         print min_len
         print "actual size"
         print sys.getsizeof(buf)
-        (sname, boot_file
+        (sname,boot_file
          ) = struct.unpack_from(unpack_str, buf)
         length = min_len
         if len(buf) > min_len:
