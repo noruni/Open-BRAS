@@ -288,11 +288,16 @@ class Interceptor(app_manager.RyuApp):
 
             data = None
             
+            print "the buffer_ids value is " + msg.buffer_id
+            
             if msg.buffer_id == ofproto.OFP_NO_BUFFER:
                 data = msg.data
                 print "outgoing data"
                 print array.array('B',data)
                 print "//outgoing data"
+                
+            if msg.buffer_id = -1:
+                print "apparently we have a local copy of this packet?"
             
             out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
                                   in_port=in_port, actions=actions, data=data)
