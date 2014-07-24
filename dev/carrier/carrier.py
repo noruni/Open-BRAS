@@ -30,6 +30,7 @@ from ryu.lib.packet import ipv4
 from ryu.lib.packet import arp
 from ryu.lib.packet import udp
 from ryu.lib.packet import dhcp
+from ryu.lib.packet.dhcp import options
 from ryu.lib.packet.udp import udp
 from ryu.lib import addrconv
 
@@ -45,8 +46,6 @@ class Carrier(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(Carrier, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
-        
-        
         
         #Let's start implementing some configuration file support
         config = ConfigParser.RawConfigParser()
@@ -154,18 +153,27 @@ class Carrier(app_manager.RyuApp):
             dh_options = dh.options.option_list
             #print dh_options
             for option in dh_options:
-                print option
-                #thisOption = dhc.pdhcp.options.parser(str(option))
-                #print thisOption.tag
-                #print thisOption.value
-                
-                print option.length
-                print option.tag
-                #print str(option.value)
+                print option #option(length=1,tag=53,value='\x01')
+                print option.length #1
+                print option.tag #53
                 opt_length = option.length
-                #print '%s'%opt_length
-                opt_val = struct.unpack_from(('%s'%opt_length),option.value)[0]
-                print opt_val
+                #opt_val = struct.unpack_from(('%s'%opt_length),option.value)[0]
+                print "The len option.value is " + str(len(option.value))
+
+
+                #        print opt_val
+                                
+                #        tag = struct.unpack_from(cls._UNPACK_STR, buf)[0]
+                #        if tag == DHCP_END_OPT or tag == DHCP_PAD_OPT:
+                #            return None
+                #        buf = buf[cls._MIN_LEN:]
+                #        length = struct.unpack_from(cls._UNPACK_STR, buf)[0]
+                #        buf = buf[cls._MIN_LEN:]
+                #        value_unpack_str = '%ds' % length
+                #        value = struct.unpack_from(value_unpack_str, buf)[0]
+                #        
+                #        IndexError: tuple index out of range
+
                 
                 
             
