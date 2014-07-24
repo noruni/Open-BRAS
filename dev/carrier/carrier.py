@@ -16,6 +16,8 @@
 import struct
 import array
 import time
+import ConfigParser
+import interceptor
 
 from ryu.base import app_manager
 from ryu.controller import ofp_event
@@ -34,31 +36,38 @@ from ryu.lib import addrconv
 DHCP_SERVER_OUT_PORT = -1
 DHCP_SERVER_DISCOVERED = False
 
-class Interceptor(app_manager.RyuApp):
+class Carrier(app_manager.RyuApp):
         
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
+    global i
+    i = interceptor.Interceptor()
 
     def __init__(self, *args, **kwargs):
-        super(Interceptor, self).__init__(*args, **kwargs)
+        super(Carrier, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
+        
+        
+        
         #Let's start implementing some configuration file support
         config = ConfigParser.RawConfigParser()
-        configFileName = './interceptor.cfg'
-        print "[ADMIN] Loading configuration file [%s]" % (configFileName)
+        configFileName = '/root/binaries/ryu/ryu/app/carrier/carrier.cfg'
+        self.logger.info("[ADMIN] Loading configuration file [%s]" % (configFileName))
         config.read(configFileName)
         
+        
         #get information about how this controller has been configured
-        self.CONTROLLER_IP = config.get('global','CONTROLLER_IP')
-        self.CONTROLLER_MAC = config.get('global','CONTROLLER_MAC')
-        self.CONTROLLER_SPECIAL_IP = config.get('global','CONTROLLER_SPECIAL_IP')
-        self.CONTROLLER_SPECIAL_MAC = config.get('global','CONTROLLER_SPECIAL_MAC')
+        self.CONTROLLER_IP = config.get('global', 'CONTROLLER_IP')
+        self.CONTROLLER_MAC = config.get('global', 'CONTROLLER_MAC')
+        self.CONTROLLER_SPECIAL_IP = config.get('global', 'CONTROLLER_SPECIAL_IP')
+        self.CONTROLLER_SPECIAL_MAC = config.get('global', 'CONTROLLER_SPECIAL_MAC')
         
         #get information about known AAA services
-        self.DHCP_SERVER_IP = config.get('aaa','DHCP_SERVER_IP')
-        self.DHCP_SERVER_MAC = config.get('aaa','DHCP_SERVER_MAC')
+        self.DHCP_SERVER_IP = config.get('aaa', 'DHCP_SERVER_IP')
+        self.DHCP_SERVER_MAC = config.get('aaa', 'DHCP_SERVER_MAC')
         
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
+        self.logger.info("[ADMIN] switch_features_handler(self, ev)")
         datapath = ev.msg.datapath
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
@@ -69,12 +78,14 @@ class Interceptor(app_manager.RyuApp):
   
     @set_ev_cls(ofp_event.EventOFPStateChange, [MAIN_DISPATCHER, DEAD_DISPATCHER])
     def switch_enter_handler(self, ev):
+        self.logger.info("[ADMIN] switch_enter_handler(self, ev)")
         dp = ev.datapath
         ofproto = dp.ofproto
         parser = dp.ofproto_parser
         if ev.state == MAIN_DISPATCHER:
             self.logger.info("Switch entered: %s", dp.id)
-            self.discover_dhcp_server(dp,ofproto,parser)
+            i.discover_dhcp_server(dp,ofproto,parser)
+            
         
         elif ev.state == DEAD_DISPATCHER:
             if dp.id is None:
@@ -83,6 +94,7 @@ class Interceptor(app_manager.RyuApp):
 
     
     def add_flow(self, datapath, priority, match, actions):
+        self.logger.info("[ADMIN] add_flow(self, datapath, priority, match, actions)")
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
         
@@ -93,117 +105,14 @@ class Interceptor(app_manager.RyuApp):
                                 match=match, instructions=inst)
         datapath.send_msg(mod)
 
-    def discover_dhcp_server(self, datapath, ofproto, parser):
-        ##arp for the DHCP server first, to learn its out port
-        ##form the ARP req
-        a_hwtype = 1
-        a_proto = ether.ETH_TYPE_IP
-        a_hlen = 6
-        a_plen = 4
-        a_opcode = 1 #request1
-        a_srcMAC = self.CONTROLLER_SPECIAL_MAC
-        a_srcIP = self.CONTROLLER_SPECIAL_IP
-        a_dstMAC = self.DHCP_SERVER_MAC
-        a_dstIP = self.DHCP_SERVER_IP
-        
-        p = packet.Packet()
-        e = ethernet.ethernet(self.DHCP_SERVER_MAC,self.CONTROLLER_SPECIAL_MAC,ether.ETH_TYPE_ARP)
-        a = arp.arp(a_hwtype,a_proto,a_hlen,a_plen,a_opcode,a_srcMAC,a_srcIP,a_dstMAC,a_dstIP)
-        p.add_protocol(e)
-        p.add_protocol(a)
-        p.serialize()
-        
-        #send packet out
-        actions = [parser.OFPActionOutput(ofproto.OFPP_FLOOD)]
-        out = parser.OFPPacketOut(datapath=datapath, buffer_id=ofproto.OFP_NO_BUFFER,
-                                      in_port=ofproto.OFPP_CONTROLLER, actions=actions, data=p.data)
-        datapath.send_msg(out)
-        dpid = datapath.id
-        self.logger.info("packet out dpid:'%s' src:'%s' dst:'%s' out_port:'OFPP_FLOOD'", dpid, self.CONTROLLER_SPECIAL_MAC, self.DHCP_SERVER_MAC)
-        self.logger.info("[ADMIN] Attempting to discover DHCP server... ")
-    
-    def get_protocols(self, pkt):
-        protocols = {}
-        for p in pkt:
-            if hasattr(p, 'protocol_name'):
-                protocols[p.protocol_name] = p
-            else:
-                protocols['payload'] = p
-        return protocols
-    
-  
-    def detect_dhcp_discover(self, pkt):
-        protocols = self.get_protocols(pkt)
-        
-        try:
-            #find the encapsulated ip data inside the packet
-            ipv4 = protocols['ipv4']
-            
-            if ipv4:
-                if ipv4.proto == inet.IPPROTO_UDP:
-                    u = protocols['udp']
-                    if u.src_port == 68 and u.dst_port == 67 and ipv4.dst == '255.255.255.255':
-                        payload = protocols['payload']
-                        dh = dhcp.dhcp.parser(str(payload))[0]
-                        if dh.op == 1:
-                            #print dh.op
-                            return True
-            else:
-                return False
-        except Exception as e:
-            print e
-            return False
-    
-    def detect_dhcp_offer(self,pkt):
-        protocols = self.get_protocols(pkt)
 
-        try:
-            ipv4 = protocols['ipv4']
-            if ipv4:
-                if ipv4.proto == inet.IPPROTO_UDP:
-                    u = protocols['udp']
-                    if u.src_port == 67 and u.dst_port == 68 and ipv4.src == self.DHCP_SERVER_IP:
-                        return True
-            else:
-                return False
-        except Exception as e:
-            return False
-            
-    def detect_dhcp_request(self, pkt):
-        protocols = self.get_protocols(pkt)
-        
-        try:
-            ipv4 = protocols['ipv4']
-            if ipv4:
-                if ipv4.proto == inet.IPPROTO_UDP:
-                    u = protocols['udp']
-                    if u.src_port == 68 and u.dst_port == 67:
-                        return True
-            else:
-                return False
-        except Exception as e:
-            return False
-            
-    def detect_dhcp_reply(self, pkt):
-        protocols = self.get_protocols(pkt)
- 
-        try:
-            ipv4 = protocols['ipv4']
-            if ipv4:
-                if ipv4.proto == inet.IPPROTO_UDP:
-                    u = protocols['udp']
-                    if u.src_port == 67 and u.dst_port == 68 and ipv4.src == self.DHCP_SERVER_IP:
-                        return True
-            else:
-                return False
-        except Exception as e:
-            return False
     
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
         global DHCP_SERVER_OUT_PORT
         global DHCP_SERVER_DISCOVERED
         
+
         msg = ev.msg
         datapath = msg.datapath
         ofproto = datapath.ofproto
@@ -212,7 +121,7 @@ class Interceptor(app_manager.RyuApp):
     
         
         pkt = packet.Packet(msg.data)
-        protocols = self.get_protocols(pkt)
+        protocols = i.get_protocols(pkt)
 
         #eth = pkt.get_protocols(ethernet.ethernet)[0]
         eth = protocols['ethernet']
@@ -226,10 +135,10 @@ class Interceptor(app_manager.RyuApp):
         d_pkt = packet.Packet(array.array('B', msg.data))
 
         
-        dhcp_d = self.detect_dhcp_discover(pkt)
-        dhcp_o = self.detect_dhcp_offer(pkt)
-        dhcp_r = self.detect_dhcp_request(pkt)
-        dhcp_a = self.detect_dhcp_reply(pkt)
+        dhcp_d = i.detect_dhcp_discover(pkt)
+        dhcp_o = i.detect_dhcp_offer(pkt)
+        dhcp_r = i.detect_dhcp_request(pkt)
+        dhcp_a = i.detect_dhcp_reply(pkt)
         
         if eth.src == self.DHCP_SERVER_MAC and not DHCP_SERVER_DISCOVERED:
             DHCP_SERVER_OUT_PORT = in_port
@@ -281,7 +190,7 @@ class Interceptor(app_manager.RyuApp):
             datapath.send_msg(out)
         
         if dhcp_o and DHCP_SERVER_DISCOVERED:
-            protocols = self.get_protocols(pkt) 
+            protocols = i.get_protocols(pkt) 
             ipv4 = protocols['ipv4']
             self.logger.info("[ADMIN] [DHCPO] DHCP Offer of '%s' sent from DHCP server to client destination MAC: '%s'", ipv4.dst, eth.dst)
             
