@@ -252,11 +252,22 @@ class Carrier(app_manager.RyuApp):
         if dhcp_nak and DHCP_SERVER_DISCOVERED:
             ## blah
             print "nak"
+            
+            ## remove any lingering temporary flows here
+            ## if a nack is received then the initialisation process starts over
+            
 
         if dhcp_dec and DHCP_SERVER_DISCOVERED:
             ## blah
             print "dec"
             
+            ## forward the decline to the server and remove 
+            ## any lingering temporary flows here
+            
         if dhcp_rel and DHCP_SERVER_DISCOVERED:
             ## blah
             print "rel"
+            
+            ## remove any lingering temporary flows here
+            
+            ## remove any WAN-accessible flows here
