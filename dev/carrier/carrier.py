@@ -197,11 +197,32 @@ class Carrier(app_manager.RyuApp):
             ipv4 = protocols['ipv4']
             self.logger.info("[ADMIN] [DHCPR] DHCP Request from '%s' broadcast to DHCP server from client destination MAC: '%s'", ipv4.src, eth.src)
 
-            #do dhcp request stuff
+            # since we already have a flow which enables this request to
+            # reach the server we don't really need to do much at all
 
         if dhcp_a and DHCP_SERVER_DISCOVERED:
             protocols = i.get_protocols(pkt) 
             ipv4 = protocols['ipv4']
             self.logger.info("[ADMIN] [DHCPA] DHCP Ack sent from DHCP server to client destination MAC: '%s'", eth.dst)
-            #do dhcp ack stuff
+
+            if eth.dst in self.mac_to_port[dpid]:
+                out_port = self.mac_to_port[dpid][eth.dst]
+            else:
+                out_port = ofproto.OFPP_FLOOD
+
+            actions = [parser.OFPActionOutput(out_port)]
+
+            data = None
+            
+            if msg.buffer_id == ofproto.OFP_NO_BUFFER:
+                data = msg.data
+            
+            out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
+                                  in_port=in_port, actions=actions, data=data)
+            self.logger.info("packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
+            datapath.send_msg(out)
+            
+            ## remove temporary flows here
+            
+            ## create WAN-accessible flows here
 
