@@ -108,7 +108,7 @@ class Carrier(app_manager.RyuApp):
         self.logger.info("[ADMIN] delete_flow(self, '%s', '%s', '%s')", datapath, priority, match)
         ofproto = datapath.ofproto 
         parser = datapath.ofproto_parser
-        mod = parser.OFPFlowMod(datapath, command=ofproto.OFPFC_DELETE,            out_port=ofproto.OFPP_ANY, out_group=ofproto.OFPG_ANY,priority=priority, match=match)
+        mod = parser.OFPFlowMod(datapath, command=ofproto.OFPFC_DELETE, out_port=ofproto.OFPP_ANY, out_group=ofproto.OFPG_ANY,priority=priority, match=match)
         datapath.send_msg(mod)
     
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
