@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import struct
 import array
 import time
 import ConfigParser
@@ -36,6 +35,7 @@ from ryu.lib import addrconv
 
 DHCP_SERVER_OUT_PORT = -1
 DHCP_SERVER_DISCOVERED = False
+DHCP_SERVER_FLOW = False
 
 class Carrier(app_manager.RyuApp):
         
@@ -110,7 +110,7 @@ class Carrier(app_manager.RyuApp):
     def _packet_in_handler(self, ev):
         global DHCP_SERVER_OUT_PORT
         global DHCP_SERVER_DISCOVERED
-        
+        global DHCP_SERVER_FLOW
 
         msg = ev.msg
         datapath = msg.datapath
@@ -142,50 +142,23 @@ class Carrier(app_manager.RyuApp):
         if eth.src == self.DHCP_SERVER_MAC and not DHCP_SERVER_DISCOVERED:
             DHCP_SERVER_OUT_PORT = in_port
             self.logger.info("[ADMIN] Discovered the local DHCP server source port on local bridge -> port %s",DHCP_SERVER_OUT_PORT)
+            self.mac_to_port[dpid][eth.src] = in_port
             DHCP_SERVER_DISCOVERED = True
         
         if dhcp_d and DHCP_SERVER_DISCOVERED:
             self.logger.info("[ADMIN] [DHCPD] DHCP Discover came in from client source MAC: '%s'", eth.src)
-            ##create a flow between requester and dhcp server
-            
-            payload = protocols['payload']
-            dh = dhcp.dhcp.parser(str(payload))[0]
-            dh_options = dh.options.option_list
-            #print dh_options
-            for option in dh_options:
-                print option #option(length=1,tag=53,value='\x01')
-                print option.length #1
-                print option.tag #53
-                opt_length = option.length
-                #opt_val = struct.unpack_from(('%s'%opt_length),option.value)[0]
-                print "The len option.value is " + str(len(option.value))
 
-
-                #        print opt_val
-                                
-                #        tag = struct.unpack_from(cls._UNPACK_STR, buf)[0]
-                #        if tag == DHCP_END_OPT or tag == DHCP_PAD_OPT:
-                #            return None
-                #        buf = buf[cls._MIN_LEN:]
-                #        length = struct.unpack_from(cls._UNPACK_STR, buf)[0]
-                #        buf = buf[cls._MIN_LEN:]
-                #        value_unpack_str = '%ds' % length
-                #        value = struct.unpack_from(value_unpack_str, buf)[0]
-                #        
-                #        IndexError: tuple index out of range
-
-                
-                
-            
-            
             # learn a mac address to avoid flood etc
             self.mac_to_port[dpid][eth.src] = in_port
-            
-            #out_port = self.mac_to_port[dpid][DHCP_SERVER_MAC]
-            #print("DHCP_SERVER_OUT_PORT = '%d'",DHCP_SERVER_OUT_PORT)
+        
             actions = [parser.OFPActionOutput(DHCP_SERVER_OUT_PORT)]
-            match = parser.OFPMatch(in_port=in_port, eth_src=eth.src, eth_dst='ff:ff:ff:ff:ff:ff')
-            self.add_flow(datapath, 1, match, actions)
+
+            # we can't accurately track the statistics of a flow if everytime
+            # we randomly receive a dhcp discovery packet we reset the flow
+            if DHCP_SERVER_FLOW == False:    
+                match = parser.OFPMatch(in_port=in_port, eth_src=eth.src,   eth_dst='ff:ff:ff:ff:ff:ff')
+                self.add_flow(datapath, 2, match, actions)
+                DHCP_SERVER_FLOW = True
             
             data = None
                        
@@ -194,7 +167,7 @@ class Carrier(app_manager.RyuApp):
             
             out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
                                   in_port=in_port, actions=actions, data=data)
-            self.logger.info("packet out dpid:'%s' in_port:'%s'", datapath.id, in_port)
+            self.logger.info("packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
             datapath.send_msg(out)
         
         if dhcp_o and DHCP_SERVER_DISCOVERED:
@@ -202,36 +175,33 @@ class Carrier(app_manager.RyuApp):
             ipv4 = protocols['ipv4']
             self.logger.info("[ADMIN] [DHCPO] DHCP Offer of '%s' sent from DHCP server to client destination MAC: '%s'", ipv4.dst, eth.dst)
             
-
-            
-            #debug code to make sure offer reaches the recipient host
             if eth.dst in self.mac_to_port[dpid]:
                 out_port = self.mac_to_port[dpid][eth.dst]
             else:
                 out_port = ofproto.OFPP_FLOOD
 
-
             actions = [parser.OFPActionOutput(out_port)]
 
             data = None
             
-            
             if msg.buffer_id == ofproto.OFP_NO_BUFFER:
                 data = msg.data
-                
-            if msg.buffer_id == -1:
-                print "apparently we have a local copy of this packet?"
             
             out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
                                   in_port=in_port, actions=actions, data=data)
-            self.logger.info("packet out dpid:'%s' in_port:'%s'", datapath.id, in_port)
+            self.logger.info("packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
             datapath.send_msg(out)
 
         if dhcp_r and DHCP_SERVER_DISCOVERED:
-            print"blah"
+            protocols = i.get_protocols(pkt) 
+            ipv4 = protocols['ipv4']
+            self.logger.info("[ADMIN] [DHCPR] DHCP Request from '%s' broadcast to DHCP server from client destination MAC: '%s'", ipv4.src, eth.src)
+
             #do dhcp request stuff
 
         if dhcp_a and DHCP_SERVER_DISCOVERED:
-            print"blah2"
-            #do dhcp reply stuff
+            protocols = i.get_protocols(pkt) 
+            ipv4 = protocols['ipv4']
+            self.logger.info("[ADMIN] [DHCPA] DHCP Ack sent from DHCP server to client destination MAC: '%s'", eth.dst)
+            #do dhcp ack stuff
 
