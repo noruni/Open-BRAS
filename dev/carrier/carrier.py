@@ -197,8 +197,28 @@ class Carrier(app_manager.RyuApp):
             ipv4 = protocols['ipv4']
             self.logger.info("[ADMIN] [DHCPR] DHCP Request from '%s' broadcast to DHCP server from client destination MAC: '%s'", ipv4.src, eth.src)
 
-            # since we already have a flow which enables this request to
-            # reach the server we don't really need to do much at all
+            # condition to create flow again in case something mucks up
+            # and we start somehow from dhcp request received
+            if DHCP_SERVER_FLOW == False:               
+                self.mac_to_port[dpid][eth.src] = in_port
+        
+                actions = [parser.OFPActionOutput(DHCP_SERVER_OUT_PORT)]
+
+                match = parser.OFPMatch(in_port=in_port, eth_src=eth.src,   eth_dst='ff:ff:ff:ff:ff:ff')
+                self.add_flow(datapath, 2, match, actions)
+                DHCP_SERVER_FLOW = True
+            
+                data = None
+                       
+                if msg.buffer_id == ofproto.OFP_NO_BUFFER:
+                    data = msg.data
+            
+                out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
+                                      in_port=in_port, actions=actions, data=data)
+                self.logger.info("packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
+                datapath.send_msg(out)
+            
+            
 
         if dhcp_a and DHCP_SERVER_DISCOVERED:
             protocols = i.get_protocols(pkt) 
