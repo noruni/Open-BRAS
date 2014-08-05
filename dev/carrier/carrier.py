@@ -93,7 +93,7 @@ class Carrier(app_manager.RyuApp):
 
     
     def add_flow(self, datapath, priority, match, actions):
-        self.logger.info("[ADMIN] add_flow(self, datapath, priority, match, actions)")
+        self.logger.info("[ADMIN] add_flow(self, '%s', '%s', '%s', '%s')", datapath, priority, match, actions)
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
         
@@ -104,7 +104,12 @@ class Carrier(app_manager.RyuApp):
                                 match=match, instructions=inst)
         datapath.send_msg(mod)
 
-
+    def delete_flow(self, datapath, priority, match): 
+        self.logger.info("[ADMIN] delete_flow(self, '%s', '%s', '%s')", datapath, priority, match)
+        ofproto = datapath.ofproto 
+        parser = datapath.ofproto_parser
+        mod = parser.OFPFlowMod(datapath, command=ofproto.OFPFC_DELETE,            out_port=ofproto.OFPP_ANY, out_group=ofproto.OFPG_ANY,priority=priority, match=match)
+        datapath.send_msg(mod)
     
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
@@ -246,28 +251,46 @@ class Carrier(app_manager.RyuApp):
             datapath.send_msg(out)
             
             ## remove temporary flows here
+            match = parser.OFPMatch(in_port=in_port,eth_src=eth.src,eth_dst='ff:ff:ff:ff:ff:ff')
+            self.delete_flow(datapath,2,match)
             
             ## create WAN-accessible flows here
             
-        if dhcp_nak and DHCP_SERVER_DISCOVERED:
-            ## blah
-            print "nak"
             
+        if dhcp_nak and DHCP_SERVER_DISCOVERED:
             ## remove any lingering temporary flows here
             ## if a nack is received then the initialisation process starts over
+            match = parser.OFPMatch(in_port=in_port,eth_src=eth.src,eth_dst='ff:ff:ff:ff:ff:ff')
+            self.delete_flow(datapath,2,match)        
             
 
         if dhcp_dec and DHCP_SERVER_DISCOVERED:
-            ## blah
-            print "dec"
+            ## forward the decline to the server 
+            if eth.dst in self.mac_to_port[dpid]:
+                out_port = self.mac_to_port[dpid][eth.dst]
+            else:
+                out_port = ofproto.OFPP_FLOOD
+
+            actions = [parser.OFPActionOutput(out_port)]
+
+            data = None
             
-            ## forward the decline to the server and remove 
-            ## any lingering temporary flows here
+            if msg.buffer_id == ofproto.OFP_NO_BUFFER:
+                data = msg.data
+            
+            out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
+                                  in_port=in_port, actions=actions, data=data)
+            self.logger.info("packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
+            datapath.send_msg(out)
+
+            ## remove any lingering temporary flows here
+            match = parser.OFPMatch(in_port=in_port,eth_src=eth.src,eth_dst='ff:ff:ff:ff:ff:ff')
+            self.delete_flow(datapath,2,match)
+            
             
         if dhcp_rel and DHCP_SERVER_DISCOVERED:
-            ## blah
-            print "rel"
-            
             ## remove any lingering temporary flows here
+            match = parser.OFPMatch(in_port=in_port,eth_src=eth.src,eth_dst='ff:ff:ff:ff:ff:ff')
+            self.delete_flow(datapath,2,match)
             
             ## remove any WAN-accessible flows here
