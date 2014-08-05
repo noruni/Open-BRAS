@@ -14,6 +14,10 @@
 # limitations under the License.
 
 import ConfigParser
+
+import struct
+import re
+
 from ryu.base import app_manager
 from ryu.controller import ofp_event
 from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER, DEAD_DISPATCHER
@@ -86,6 +90,31 @@ class Interceptor(app_manager.RyuApp):
                 protocols['payload'] = p
         return protocols
 
+    def extract_options(self, pkt):
+        protocols = self.get_protocols(pkt)
+        payload = protocols['payload']
+        dh = dhcp.dhcp.parser(str(payload))[0]
+        dh_options = dh.options.option_list
+        options = {}
+        
+        for option in dh_options:
+            opt_length = option.length
+            unpack_str = '%ds' % opt_length
+            opt_val = struct.unpack_from(unpack_str,option.value)
+
+            ##disgusting code to extract hex value from buffer
+            ##1 byte only at the moment
+            
+            if opt_length == 1:
+                regex = re.compile(r"\\")
+                opt_val = regex.sub('0',str(opt_val))
+                opt_val = opt_val[2:]
+                opt_val = opt_val[:-3]
+                opt_val = int(opt_val, 16)
+                options[option.tag] = opt_val
+                
+        return options        
+
 
     def detect_dhcp_discover(self, pkt):
         protocols = self.get_protocols(pkt)
@@ -98,11 +127,10 @@ class Interceptor(app_manager.RyuApp):
                 if ipv4.proto == inet.IPPROTO_UDP:
                     u = protocols['udp']
                     if u.src_port == 68 and u.dst_port == 67 and ipv4.dst == '255.255.255.255':
-                        payload = protocols['payload']
-                        dh = dhcp.dhcp.parser(str(payload))[0]
-                        if dh.op == 1:
-                            #print dh.op
+                        options = self.extract_options(pkt)
+                        if 53 in options and options[53] == 1:
                             return True
+                        
             else:
                 return False
         except Exception as e:
@@ -118,7 +146,9 @@ class Interceptor(app_manager.RyuApp):
                 if ipv4.proto == inet.IPPROTO_UDP:
                     u = protocols['udp']
                     if u.src_port == 67 and u.dst_port == 68 and ipv4.src == self.DHCP_SERVER_IP:
-                        return True
+                        options = self.extract_options(pkt)
+                        if 53 in options and options[53] == 2:
+                            return True
             else:
                 return False
         except Exception as e:
@@ -133,13 +163,15 @@ class Interceptor(app_manager.RyuApp):
                 if ipv4.proto == inet.IPPROTO_UDP:
                     u = protocols['udp']
                     if u.src_port == 68 and u.dst_port == 67:
-                        return True
+                        options = self.extract_options(pkt)
+                        if 53 in options and options[53] == 3:
+                            return True
             else:
                 return False
         except Exception as e:
             return False
             
-    def detect_dhcp_reply(self, pkt):
+    def detect_dhcp_reply(self, pkt): ##aka dhcp ack
         protocols = self.get_protocols(pkt)
 
         try:
@@ -148,7 +180,9 @@ class Interceptor(app_manager.RyuApp):
                 if ipv4.proto == inet.IPPROTO_UDP:
                     u = protocols['udp']
                     if u.src_port == 67 and u.dst_port == 68 and ipv4.src == self.DHCP_SERVER_IP:
-                        return True
+                        options = self.extract_options(pkt)
+                        if 53 in options and options[53] == 5:
+                            return True
             else:
                 return False
         except Exception as e:
