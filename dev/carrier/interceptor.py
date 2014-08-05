@@ -171,7 +171,7 @@ class Interceptor(app_manager.RyuApp):
         except Exception as e:
             return False
             
-    def detect_dhcp_reply(self, pkt): ##aka dhcp ack
+    def detect_dhcp_ack(self, pkt): 
         protocols = self.get_protocols(pkt)
 
         try:
@@ -182,6 +182,41 @@ class Interceptor(app_manager.RyuApp):
                     if u.src_port == 67 and u.dst_port == 68 and ipv4.src == self.DHCP_SERVER_IP:
                         options = self.extract_options(pkt)
                         if 53 in options and options[53] == 5:
+                            return True
+            else:
+                return False
+        except Exception as e:
+            return False
+
+
+    def detect_dhcp_decline(self, pkt):
+        protocols = self.get_protocols(pkt)
+
+        try:
+            ipv4 = protocols['ipv4']
+            if ipv4:
+                if ipv4.proto == inet.IPPROTO_UDP:
+                    u = protocols['udp']
+                    if u.src_port == 68 and u.dst_port == 67:
+                        options = self.extract_options(pkt)
+                        if 53 in options and options[53] == 4:
+                            return True
+            else:
+                return False
+        except Exception as e:
+            return False
+            
+    def detect_dhcp_release(self, pkt):
+        protocols = self.get_protocols(pkt)
+
+        try:
+            ipv4 = protocols['ipv4']
+            if ipv4:
+                if ipv4.proto == inet.IPPROTO_UDP:
+                    u = protocols['udp']
+                    if u.src_port == 68 and u.dst_port == 67:
+                        options = self.extract_options(pkt)
+                        if 53 in options and options[53] == 7:
                             return True
             else:
                 return False

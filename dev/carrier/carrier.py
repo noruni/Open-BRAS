@@ -137,7 +137,10 @@ class Carrier(app_manager.RyuApp):
         dhcp_d = i.detect_dhcp_discover(pkt)
         dhcp_o = i.detect_dhcp_offer(pkt)
         dhcp_r = i.detect_dhcp_request(pkt)
-        dhcp_a = i.detect_dhcp_reply(pkt)
+        dhcp_a = i.detect_dhcp_ack(pkt)
+        dhcp_nak = i.detect_dhcp_nak(pkt)
+        dhcp_dec = i.detect_dhcp_decline(pkt)
+        dhcp_rel = i.detect_dhcp_decline(pkt)
         
         if eth.src == self.DHCP_SERVER_MAC and not DHCP_SERVER_DISCOVERED:
             DHCP_SERVER_OUT_PORT = in_port
@@ -245,4 +248,15 @@ class Carrier(app_manager.RyuApp):
             ## remove temporary flows here
             
             ## create WAN-accessible flows here
+            
+        if dhcp_nak and DHCP_SERVER_DISCOVERED:
+            ## blah
+            print "nak"
 
+        if dhcp_dec and DHCP_SERVER_DISCOVERED:
+            ## blah
+            print "dec"
+            
+        if dhcp_rel and DHCP_SERVER_DISCOVERED:
+            ## blah
+            print "rel"
