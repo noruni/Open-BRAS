@@ -16,7 +16,9 @@
 import array
 import time
 import ConfigParser
+
 import interceptor
+import probe
 
 from ryu.base import app_manager
 from ryu.controller import ofp_event
@@ -40,8 +42,9 @@ DHCP_SERVER_FLOW = False
 class Carrier(app_manager.RyuApp):
         
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
-    global i
+    global i, p
     i = interceptor.Interceptor()
+    p = probe.Probe()
 
     def __init__(self, *args, **kwargs):
         super(Carrier, self).__init__(*args, **kwargs)
@@ -49,13 +52,14 @@ class Carrier(app_manager.RyuApp):
         #Let's start implementing some configuration file support
         config = ConfigParser.RawConfigParser()
         configFileName = '/root/binaries/ryu/ryu/app/carrier/carrier.cfg'
-        self.logger.info("[ADMIN] Loading configuration file [%s]" % (configFileName))
+        self.logger.info("[ADMIN] (Carrier) Loading configuration file [%s]" % (configFileName))
         config.read(configFileName)
         #get information about the router
         self.ROUTER_IP = config.get('global', 'ROUTER_IP')
         self.ROUTER_MAC = config.get('global', 'ROUTER_MAC')
         #get information about known AAA services
         self.DHCP_SERVER_MAC = config.get('aaa', 'DHCP_SERVER_MAC')
+        
         
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
