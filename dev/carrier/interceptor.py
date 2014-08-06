@@ -39,7 +39,7 @@ class Interceptor(app_manager.RyuApp):
         #Let's start implementing some configuration file support
         config = ConfigParser.RawConfigParser()
         configFileName = '/root/binaries/ryu/ryu/app/carrier/carrier.cfg'
-        self.logger.info("[ADMIN] Loading configuration file [%s]" % (configFileName))
+        self.logger.info("[ADMIN] (Interceptor) Loading configuration file [%s]" % (configFileName))
         config.read(configFileName)
         #get information about how this controller has been configured
         self.CONTROLLER_IP = config.get('global', 'CONTROLLER_IP')
