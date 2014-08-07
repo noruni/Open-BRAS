@@ -46,4 +46,33 @@ class Probe(app_manager.RyuApp):
         cluster = Cluster()
         db_session = cluster.connect('customers')
         
+    ## function -> is this a valid "customer"?
+    # unique token valid? yay? go ahead, nay? drop packet
     
+    ## function -> what is this service
+    # how do we handle this? do we faciliate a DHCP connection here? 
+    # or are they a ppp/vlan/mpls etc customer
+    
+    #### getter/setter functions, split out by tables
+    #### some will need to be private only
+    #### primary want to be reading from database
+    #### will want to be writing to the session table though to update
+    
+    ### HANDLE TABLE
+    
+    ### CUSTOMER INFO TABLE
+    
+    ### NETWORK INFO TABLE
+    
+    ### SERVICE INFO TABLE
+    
+    ### AUTHENTICATOR TABLE
+    
+    ### AUTHENTICATOR INFO TABLE
+    
+    ### SESSION TABLE
+    
+    ### BILLING TABLE
+    
+    
+
