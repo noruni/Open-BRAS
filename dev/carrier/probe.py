@@ -45,6 +45,9 @@ class Probe(app_manager.RyuApp):
         #create connection to customer database
         cluster = Cluster()
         db_session = cluster.connect('customers')
+    
+    ## don't worry about exposing this database info
+    ## it's just a proof-of-concept and will store nothing of value
         
     ## function -> is this a valid "customer"?
     # unique token valid? yay? go ahead, nay? drop packet
@@ -52,27 +55,95 @@ class Probe(app_manager.RyuApp):
     ## function -> what is this service
     # how do we handle this? do we faciliate a DHCP connection here? 
     # or are they a ppp/vlan/mpls etc customer
+
     
     #### getter/setter functions, split out by tables
     #### some will need to be private only
     #### primary want to be reading from database
     #### will want to be writing to the session table though to update
-    
+
+##########################    
     ### HANDLE TABLE
     
+    ## get id
+    ## get info_id
+    ## get network_id
+    ## get billing_id
+    
+##########################
     ### CUSTOMER INFO TABLE
-    
+
+    ## get fname
+    ## get lname
+    ## get phys_addr
+    ## get postal_addr
+    ## get email
+    ## get phone
+
+##########################    
     ### NETWORK INFO TABLE
-    
+
+    ## get service_id
+    ## get auth_item_id
+    ## get session_id
+    ## get cvid
+    ## get svid
+    ## get order_num
+    ## get static_IP
+    ## get lan_type
+
+##########################    
     ### SERVICE INFO TABLE
-    
+
+    ## get serv_description
+    ## get handover
+    ## get variant
+
+##########################    
     ### AUTHENTICATOR TABLE
-    
+
+    ## get auth_id
+    ## get token
+    ## get device
+    ## get auth_type
+
+##########################    
     ### AUTHENTICATOR INFO TABLE
-    
+
+    ## get auth_item_id
+    ## get tokens[auth_id,<..>]
+
+##########################    
     ### SESSION TABLE
     
-    ### BILLING TABLE
-    
-    
+    ## get session_start
+    ## get session_end
+    ## get termination
+    ## get nas_id
+    ## get nas_IP
+    ## get framed_IP
+    ## get client_MAC
+    ## get station_MAC
 
+    ## set session_start    
+    ## set session_end
+    ## set termination    
+    ## set nas_id    
+    ## set nas_IP
+    ## set framed_IP
+    ## set client_MAC
+    ## set station_MAC
+
+##########################
+    ##### we probably don't need to expose this table 
+    ##### the thought being that eventually RADIUS
+    ##### would take over accounting stuff
+    
+    ### BILLING TABLE
+    ## get bill_type
+    ## get acc_num
+    ## get bill_description
+    ## get expiry
+    ## get debit_date
+
+##########################
