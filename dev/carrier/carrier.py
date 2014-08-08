@@ -38,6 +38,9 @@ from ryu.lib import addrconv
 DHCP_SERVER_OUT_PORT = -1
 DHCP_SERVER_DISCOVERED = False
 DHCP_SERVER_FLOW = False
+WAN_OUT_PORT
+WAN_ROUTER_DISCOVERED = False
+WAN_FLOW = False
 
 class Carrier(app_manager.RyuApp):
         
@@ -104,6 +107,33 @@ class Carrier(app_manager.RyuApp):
         datapath.send_msg(mod)
     
     
+    def discover_router(self, datapath, ofproto, parser):
+        ##arp for the router first, to learn its out port
+        ##form the ARP req
+        a_hwtype = 1
+        a_proto = ether.ETH_TYPE_IP
+        a_hlen = 6
+        a_plen = 4
+        a_opcode = 1 #request1
+        a_srcMAC = self.CONTROLLER_SPECIAL_MAC
+        a_srcIP = self.CONTROLLER_SPECIAL_IP
+        a_dstMAC = self.ROUTER_MAC
+        a_dstIP = self.ROUTER_IP
+        p = packet.Packet()
+        e = ethernet.ethernet(a_dstMAC,a_srcMAC,ether.ETH_TYPE_ARP)
+        a = arp.arp(a_hwtype,a_proto,a_hlen,a_plen,a_opcode,a_srcMAC,a_srcIP,a_dstMAC,a_dstIP)
+        p.add_protocol(e)
+        p.add_protocol(a)
+        p.serialize()
+        #send packet out
+        actions = [parser.OFPActionOutput(ofproto.OFPP_FLOOD)]
+        out = parser.OFPPacketOut(datapath=datapath, buffer_id=ofproto.OFP_NO_BUFFER,in_port=ofproto.OFPP_CONTROLLER, actions=actions, data=p.data)
+        datapath.send_msg(out)
+        dpid = datapath.id
+        self.logger.info("packet out dpid:'%s' src:'%s' dst:'%s' out_port:'OFPP_FLOOD'", dpid, self.CONTROLLER_SPECIAL_MAC, self.ROUTER_MAC)
+        self.logger.info("[ADMIN] Attempting to discover WAN router... ")
+    
+    
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
         global DHCP_SERVER_OUT_PORT
@@ -141,6 +171,14 @@ class Carrier(app_manager.RyuApp):
             self.logger.info("[ADMIN] Discovered the local DHCP server source port on local bridge -> port %s",DHCP_SERVER_OUT_PORT)
             self.mac_to_port[dpid][eth.src] = in_port
             DHCP_SERVER_DISCOVERED = True
+        
+        
+        if eth.src == self.ROUTER_MAC and not WAN_ROUTER_DISCOVERED:
+            WAN_OUT_PORT = in_port
+            self.logger.info("[ADMIN] Discovered the WAN accessible port on local bridge -> port %s",WAN_OUT_PORT)
+            self.mac_to_port[dpid][eth.src] = in_port
+            WAN_ROUTER_DISCOVERED = True
+            
         
         if dhcp_d and DHCP_SERVER_DISCOVERED:
             self.logger.info("[ADMIN] [DHCPD] DHCP Discover came in from client source MAC: '%s'", eth.src)
@@ -241,7 +279,7 @@ class Carrier(app_manager.RyuApp):
             self.delete_flow(datapath,2,match)
             
             ## create WAN-accessible flows here
-            
+
             
             
         if dhcp_nak and DHCP_SERVER_DISCOVERED:
