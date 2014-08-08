@@ -279,7 +279,12 @@ class Carrier(app_manager.RyuApp):
             self.delete_flow(datapath,2,match)
             
             ## create WAN-accessible flows here
+            actions = [parser.OFPActionOutput(WAN_OUT_PORT)]
 
+            if WAN_FLOW == False:    
+                match = parser.OFPMatch(in_port=in_port, eth_src=eth.src)
+                self.add_flow(datapath, 100, match, actions)
+                WAN_FLOW = True
             
             
         if dhcp_nak and DHCP_SERVER_DISCOVERED:
@@ -318,4 +323,5 @@ class Carrier(app_manager.RyuApp):
             self.delete_flow(datapath,2,match)
             
             ## remove any WAN-accessible flows here
-            
+            match = parser.OFPMatch(in_port=in_port,eth.src=eth.src)
+            self.delete_flow(datapath,100,match)
