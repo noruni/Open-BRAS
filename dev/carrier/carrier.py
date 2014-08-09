@@ -38,7 +38,7 @@ from ryu.lib import addrconv
 DHCP_SERVER_OUT_PORT = -1
 DHCP_SERVER_DISCOVERED = False
 DHCP_SERVER_FLOW = False
-WAN_OUT_PORT
+WAN_OUT_PORT = -1
 WAN_ROUTER_DISCOVERED = False
 WAN_FLOW = False
 
@@ -49,6 +49,7 @@ class Carrier(app_manager.RyuApp):
     i = interceptor.Interceptor()
     p = probe.Probe()
 
+
     def __init__(self, *args, **kwargs):
         super(Carrier, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
@@ -57,6 +58,9 @@ class Carrier(app_manager.RyuApp):
         configFileName = '/root/binaries/ryu/ryu/app/carrier/carrier.cfg'
         self.logger.info("[ADMIN] (Carrier) Loading configuration file [%s]" % (configFileName))
         config.read(configFileName)
+        #anonymouse unicast addressing
+        self.CONTROLLER_SPECIAL_IP = config.get('global', 'CONTROLLER_SPECIAL_IP')
+        self.CONTROLLER_SPECIAL_MAC = config.get('global', 'CONTROLLER_SPECIAL_MAC')
         #get information about the router
         self.ROUTER_IP = config.get('global', 'ROUTER_IP')
         self.ROUTER_MAC = config.get('global', 'ROUTER_MAC')
@@ -83,7 +87,9 @@ class Carrier(app_manager.RyuApp):
         parser = dp.ofproto_parser
         if ev.state == MAIN_DISPATCHER:
             self.logger.info("Switch entered: %s", dp.id)
-            i.discover_dhcp_server(dp,ofproto,parser)         
+            i.discover_dhcp_server(dp,ofproto,parser)  
+            self.discover_router(dp,ofproto,parser)
+            p.connect(['127.0.0.1'])  
         elif ev.state == DEAD_DISPATCHER:
             if dp.id is None:
                 return
@@ -323,5 +329,5 @@ class Carrier(app_manager.RyuApp):
             self.delete_flow(datapath,2,match)
             
             ## remove any WAN-accessible flows here
-            match = parser.OFPMatch(in_port=in_port,eth.src=eth.src)
+            match = parser.OFPMatch(in_port=in_port,eth_src=eth.src)
             self.delete_flow(datapath,100,match)
