@@ -16,24 +16,27 @@
 import ConfigParser
 
 from cassandra.cluster import Cluster
-
 from ryu.base import app_manager
-from ryu.controller import ofp_event
-from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER, DEAD_DISPATCHER
-from ryu.controller.handler import set_ev_cls
-from ryu.ofproto import ofproto_v1_3, ether, inet
-from ryu.lib.packet import packet
-from ryu.lib.packet import ethernet
-from ryu.lib.packet import ipv4
-from ryu.lib.packet import arp
-from ryu.lib.packet import udp
-from ryu.lib.packet import dhcp
-from ryu.lib.packet.udp import udp
-from ryu.lib import addrconv
 
 class Probe(app_manager.RyuApp):
     
     global db_session
+    
+    def connect(self,nodes):
+        cluster = Cluster(nodes)
+        metadata = cluster.metadata
+        db_session = cluster.connect('customers')
+        self.logger.info("[ADMIN] (Probe) Connected to cluster: "+ metadata.cluster_name)
+        for host in metadata.all_hosts():
+                    self.logger.info('[ADMIN] (Probe) Datacenter: %s; Host: %s; Rack: %s',
+                        host.datacenter, host.address, host.rack)
+        result = db_session.execute("select * from handle");
+        print result
+        
+    def close(self):
+        self.db_session.cluster.shutdown()
+        self.db_session.shutdown()
+        self.logger.info('[ADMIN] (Probe) Connection closed.')
     
     def __init__(self, *args, **kwargs):
         super(Probe, self).__init__(*args, **kwargs)
@@ -43,8 +46,21 @@ class Probe(app_manager.RyuApp):
         self.logger.info("[ADMIN] (Probe) Loading configuration file [%s]" % (configFileName))
         config.read(configFileName)
         #create connection to customer database
-        cluster = Cluster()
-        db_session = cluster.connect('customers')
+        #self.connect(['127.0.0.1'])
+    
+
+    
+    #def __init__(self, *args, **kwargs):
+    #    super(Probe, self).__init__(*args, **kwargs)
+    #    #Let's start implementing some configuration file support
+    #    config = ConfigParser.RawConfigParser()
+    #    configFileName = '/root/binaries/ryu/ryu/app/carrier/carrier.cfg'
+    #    self.logger.info("[ADMIN] (Probe) Loading configuration file [%s]" % (configFileName))
+    #    config.read(configFileName)
+    #    #create connection to customer database
+    #    cluster = Cluster()
+    #    db_session = cluster.connect('customers')
+    
     
     ## don't worry about exposing this database info
     ## it's just a proof-of-concept and will store nothing of value
