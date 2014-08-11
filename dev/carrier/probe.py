@@ -14,29 +14,22 @@
 # limitations under the License.
 
 import ConfigParser
+import pycassa
 
-from cassandra.cluster import Cluster
+from pycassa.pool import ConnectionPool
+from pycassa.columnfamily import ColumnFamily
 from ryu.base import app_manager
 
 class Probe(app_manager.RyuApp):
     
     global db_session
     
-    def connect(self,nodes):
-        cluster = Cluster(nodes)
-        metadata = cluster.metadata
-        db_session = cluster.connect('customers')
-        self.logger.info("[ADMIN] (Probe) Connected to cluster: "+ metadata.cluster_name)
-        for host in metadata.all_hosts():
-                    self.logger.info('[ADMIN] (Probe) Datacenter: %s; Host: %s; Rack: %s',
-                        host.datacenter, host.address, host.rack)
-        result = db_session.execute("select * from handle");
-        print result
-        
-    def close(self):
-        self.db_session.cluster.shutdown()
-        self.db_session.shutdown()
-        self.logger.info('[ADMIN] (Probe) Connection closed.')
+    def connect(self):
+        pool = pycassa.ConnectionPool(keyspace='customers',server_list=['127.0.0.1:9160'])
+        col_fam = ColumnFamily(pool,'handle');
+        readData = col_fam.get(1,columns=['billing_item_id', 'info_item_id'])
+        for k, v in readData.items():
+            print k, v
     
     def __init__(self, *args, **kwargs):
         super(Probe, self).__init__(*args, **kwargs)
@@ -46,20 +39,7 @@ class Probe(app_manager.RyuApp):
         self.logger.info("[ADMIN] (Probe) Loading configuration file [%s]" % (configFileName))
         config.read(configFileName)
         #create connection to customer database
-        #self.connect(['127.0.0.1'])
-    
-
-    
-    #def __init__(self, *args, **kwargs):
-    #    super(Probe, self).__init__(*args, **kwargs)
-    #    #Let's start implementing some configuration file support
-    #    config = ConfigParser.RawConfigParser()
-    #    configFileName = '/root/binaries/ryu/ryu/app/carrier/carrier.cfg'
-    #    self.logger.info("[ADMIN] (Probe) Loading configuration file [%s]" % (configFileName))
-    #    config.read(configFileName)
-    #    #create connection to customer database
-    #    cluster = Cluster()
-    #    db_session = cluster.connect('customers')
+        self.connect()
     
     
     ## don't worry about exposing this database info

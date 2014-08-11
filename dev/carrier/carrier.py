@@ -45,9 +45,9 @@ WAN_FLOW = False
 class Carrier(app_manager.RyuApp):
         
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
-    global i, p
+    global i, pr
     i = interceptor.Interceptor()
-    p = probe.Probe()
+    pr = probe.Probe()
 
 
     def __init__(self, *args, **kwargs):
@@ -89,7 +89,7 @@ class Carrier(app_manager.RyuApp):
             self.logger.info("Switch entered: %s", dp.id)
             i.discover_dhcp_server(dp,ofproto,parser)  
             self.discover_router(dp,ofproto,parser)
-            p.connect(['127.0.0.1'])  
+            pr.connect()
         elif ev.state == DEAD_DISPATCHER:
             if dp.id is None:
                 return
