@@ -63,6 +63,39 @@ class Probe(app_manager.RyuApp):
     ### HANDLE TABLE
     
     ## get id
+    ## indexed by each column so we can do reverse lookups
+    def handle_get_id_viaInfo(self,pool,key):
+        # if provided a column value key, get this token id
+        ret = None
+        token = ColumnFamily(pool,'handle')
+        expr = create_index_expression('info_item_id',key)
+        clause = create_index_clause([expr])
+        result = token.get_indexed_slices(clause)
+        for keyx,columnx in result;
+            ret = keyx
+        return ret
+        
+    def handle_get_id_viaBilling(self,pool,key):
+        # if provided a column value key, get this token id
+        ret = None
+        token = ColumnFamily(pool,'handle')
+        expr = create_index_expression('billing_item_id',key)
+        clause = create_index_clause([expr])
+        result = token.get_indexed_slices(clause)
+        for keyx,columnx in result;
+            ret = keyx
+        return ret
+    
+    def handle_get_id_viaNetwork(self,pool,key):
+        # if provided a column value key, get this token id
+        ret = None
+        token = ColumnFamily(pool,'handle')
+        expr = create_index_expression('network_item_id',key)
+        clause = create_index_clause([expr])
+        result = token.get_indexed_slices(clause)
+        for keyx,columnx in result;
+            ret = keyx
+        return ret
     
     ## get info_id
     def handle_get_infoid(self,pool,key):
@@ -117,14 +150,17 @@ class Probe(app_manager.RyuApp):
     ### AUTHENTICATOR TABLE
 
     ## get token_id
+
     def authenticator_get_token_id(self,pool,key):
         # if provided a column value key, get this token id
+        ret = None
         token = ColumnFamily(pool,'authenticator')
         expr = create_index_expression('atoken',key)
         clause = create_index_clause([expr])
         result = token.get_indexed_slices(clause)
         for keyx,columnx in result;
-            return keyx
+            ret = keyx
+        return ret
     
     ## get token
     def authenticator_get_token(self,pool,key):
