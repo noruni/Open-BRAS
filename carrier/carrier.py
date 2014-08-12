@@ -42,6 +42,7 @@ WAN_OUT_PORT = -1
 WAN_ROUTER_DISCOVERED = False
 DB_CONNECTION_LIVE = False
 
+
 class Carrier(app_manager.RyuApp):
         
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
@@ -113,6 +114,31 @@ class Carrier(app_manager.RyuApp):
         mod = parser.OFPFlowMod(datapath, command=ofproto.OFPFC_DELETE, out_port=ofproto.OFPP_ANY, out_group=ofproto.OFPG_ANY,priority=priority, match=match)
         datapath.send_msg(mod)
     
+    @set_ev_cls(ofp_event.EventOFPFlowStatsReply, MAIN_DISPATCHER)
+    def extract_flow_information(self, ev):
+        flows = {}
+        counter = 0
+        for stat in ev.msg.body:
+            flows[counter] = {'table_id':stat.table_id, 'duration_sec':stat.duration_sec, 'duration_nsec':stat.duration_nsec,
+        'priority':stat.priority, 'idle_timeout':stat.idle_timeout, 'hard_timeout':stat.hard_timeout, 'flags':stat.flags, 
+    'cookie':stat.cookie, 'packet_count':stat.packet_count, 'byte_count':stat.byte_count, 'match':stat.match, 'instructions':stat.instructions}
+            counter++
+        self.logger.debug('FlowStats: %s \n', flows)
+    
+    
+    def send_flow_stats_request(self, datapath, eth_dst):
+        ofp = datapath.ofproto
+        ofp_parser = datapath.ofproto_parser
+
+        cookie = cookie_mask = 0
+        self.logger.debug("flow_stats_request eth_dst = '%s'",eth_dst)
+        match = ofp_parser.OFPMatch(eth_dst=eth_dst)
+        req = ofp_parser.OFPFlowStatsRequest(datapath, 0,
+                                             ofp.OFPTT_ALL,
+                                             ofp.OFPP_ANY, ofp.OFPG_ANY,
+                                             cookie, cookie_mask,
+                                             match)
+        datapath.send_msg(req)
     
     def discover_router(self, datapath, ofproto, parser):
         ##arp for the router first, to learn its out port
@@ -177,6 +203,7 @@ class Carrier(app_manager.RyuApp):
                 self.logger.info("[ADMIN] Client '%s' is valid!", eth.src)   
                 if db_check != None:
                     self.logger.info("[ADMIN] Client '%s' is a customer in database!", eth.src)
+                self.send_flow_stats_request(datapath,eth.src)
             else:
                 ## else we have no awareness about who is trying to send this packet through our 
                 ## BRAS - drop it on the floor
