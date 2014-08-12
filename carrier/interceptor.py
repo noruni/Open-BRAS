@@ -125,7 +125,6 @@ class Interceptor(app_manager.RyuApp):
             else:
                 return False
         except Exception as e:
-            print e
             return False
 
 
