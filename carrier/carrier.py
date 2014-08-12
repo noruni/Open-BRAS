@@ -41,6 +41,7 @@ DHCP_SERVER_FLOW = False
 WAN_OUT_PORT = -1
 WAN_ROUTER_DISCOVERED = False
 WAN_FLOW = False
+DB_CONNECTION_LIVE = False
 
 class Carrier(app_manager.RyuApp):
         
@@ -81,6 +82,7 @@ class Carrier(app_manager.RyuApp):
 
     @set_ev_cls(ofp_event.EventOFPStateChange, [MAIN_DISPATCHER, DEAD_DISPATCHER])
     def switch_enter_handler(self, ev):
+        global DB_CONNECTION_LIVE
         self.logger.info("[ADMIN] switch_enter_handler(self, ev)")
         dp = ev.datapath
         ofproto = dp.ofproto
@@ -89,7 +91,8 @@ class Carrier(app_manager.RyuApp):
             self.logger.info("Switch entered: %s", dp.id)
             i.discover_dhcp_server(dp,ofproto,parser)  
             self.discover_router(dp,ofproto,parser)
-            pr.connect()
+            DB_CONNECTION_LIVE = pr.connect()
+            self.logger.info("Is DB_CONNECTION_LIVE? '%s'",DB_CONNECTION_LIVE )
         elif ev.state == DEAD_DISPATCHER:
             if dp.id is None:
                 return
@@ -148,6 +151,7 @@ class Carrier(app_manager.RyuApp):
         global WAN_OUT_PORT
         global WAN_ROUTER_DISCOVERED
         global WAN_FLOW
+        global DB_CONNECTION_LIVE
 
         msg = ev.msg
         datapath = msg.datapath
@@ -164,7 +168,15 @@ class Carrier(app_manager.RyuApp):
         self.mac_to_port.setdefault(dpid, {})
         
         self.logger.info("packet in dpid:'%s' src:'%s' dst:'%s' in_port:'%s'", dpid, eth.src, eth.dst, in_port)
-
+        
+        self.logger.info("Is DB_CONNECTION_LIVE? '%s'",DB_CONNECTION_LIVE )
+        if DB_CONNECTION_LIVE:
+            ## check if MAC is in database (basic DB function test)
+            client_check = pr.authenticator_get_token_id(str(eth.src))
+            if client_check != None:
+                # if we get here then the mac address associated with this
+                # packet is in fact in the database
+                self.logger.info("[ADMIN] Client '%s' is in the database!", eth.src)   
         d_pkt = packet.Packet(array.array('B', msg.data)) # detailed packet
         
         dhcp_d = i.detect_dhcp_discover(pkt)
