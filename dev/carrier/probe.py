@@ -22,14 +22,15 @@ from ryu.base import app_manager
 
 class Probe(app_manager.RyuApp):
     
-    global db_session
+    global pool
+    pool = None
     
     def connect(self):
         pool = pycassa.ConnectionPool(keyspace='customers',server_list=['127.0.0.1:9160'])
-        col_fam = ColumnFamily(pool,'handle');
-        readData = col_fam.get(1,columns=['billing_item_id', 'info_item_id'])
-        for k, v in readData.items():
-            print k, v
+
+    
+    def close(self):
+        pool.dispose()
     
     def __init__(self, *args, **kwargs):
         super(Probe, self).__init__(*args, **kwargs)
@@ -38,8 +39,6 @@ class Probe(app_manager.RyuApp):
         configFileName = '/root/binaries/ryu/ryu/app/carrier/carrier.cfg'
         self.logger.info("[ADMIN] (Probe) Loading configuration file [%s]" % (configFileName))
         config.read(configFileName)
-        #create connection to customer database
-        self.connect()
     
     
     ## don't worry about exposing this database info
@@ -62,9 +61,25 @@ class Probe(app_manager.RyuApp):
     ### HANDLE TABLE
     
     ## get id
+    
     ## get info_id
+    def handle_get_infoid(self,pool,key):
+        col_fam = ColumnFamily(pool,'handle');
+        readData = col_fam.get(key,columns=['info_item_id'])
+        return readData.items()[0][1]
+    
     ## get network_id
+    def handle_get_networkid(self,pool,key):
+        col_fam = ColumnFamily(pool,'handle');
+        readData = col_fam.get(key,columns=['network_item_id'])
+        return readData.items()[0][1]
+    
     ## get billing_id
+    def handle_get_billingid(self,pool,key):
+        col_fam = ColumnFamily(pool,'handle');
+        readData = col_fam.get(key,columns=['billing_item_id'])
+        return readData.items()[0][1]
+    
     
 ##########################
     ### CUSTOMER INFO TABLE
