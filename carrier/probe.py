@@ -72,7 +72,7 @@ class Probe(app_manager.RyuApp):
         expr = create_index_expression('info_item_id',key)
         clause = create_index_clause([expr])
         result = token.get_indexed_slices(clause)
-        for keyx,columnx in result;
+        for keyx,columnx in result:
             ret = keyx
         return ret
         
@@ -83,7 +83,7 @@ class Probe(app_manager.RyuApp):
         expr = create_index_expression('billing_item_id',key)
         clause = create_index_clause([expr])
         result = token.get_indexed_slices(clause)
-        for keyx,columnx in result;
+        for keyx,columnx in result:
             ret = keyx
         return ret
     
@@ -94,7 +94,7 @@ class Probe(app_manager.RyuApp):
         expr = create_index_expression('network_item_id',key)
         clause = create_index_clause([expr])
         result = token.get_indexed_slices(clause)
-        for keyx,columnx in result;
+        for keyx,columnx in result:
             ret = keyx
         return ret
     
@@ -138,7 +138,7 @@ class Probe(app_manager.RyuApp):
         expr = create_index_expression('auth_item_id',key)
         clause = create_index_clause([expr])
         result = token.get_indexed_slices(clause)
-        for keyx,columnx in result;
+        for keyx,columnx in result:
             ret = keyx
         return ret
         
@@ -149,7 +149,7 @@ class Probe(app_manager.RyuApp):
         expr = create_index_expression('service_id',key)
         clause = create_index_clause([expr])
         result = token.get_indexed_slices(clause)
-        for keyx,columnx in result;
+        for keyx,columnx in result:
             ret = keyx
         return ret
         
@@ -160,7 +160,7 @@ class Probe(app_manager.RyuApp):
         expr = create_index_expression('session_id',key)
         clause = create_index_clause([expr])
         result = token.get_indexed_slices(clause)
-        for keyx,columnx in result;
+        for keyx,columnx in result:
             ret = keyx
         return ret
 
@@ -230,7 +230,7 @@ class Probe(app_manager.RyuApp):
         expr = create_index_expression('atoken',key)
         clause = create_index_clause([expr])
         result = token.get_indexed_slices(clause)
-        for keyx,columnx in result;
+        for keyx,columnx in result:
             ret = keyx
         return ret
     
@@ -265,7 +265,7 @@ class Probe(app_manager.RyuApp):
         expr = create_index_expression('token_id',key)
         clause = create_index_clause([expr])
         result = token.get_indexed_slices(clause)
-        for keyx,columnx in result;
+        for keyx,columnx in result:
             ret = keyx
         return ret
     
