@@ -65,7 +65,7 @@ class Probe(app_manager.RyuApp):
     
     ## get id
     ## indexed by each column so we can do reverse lookups
-    def handle_get_id_viaInfo(self,pool,key):
+    def handle_get_id_viaInfo(self,key):
         # if provided a column value key, get this token id
         ret = None
         token = ColumnFamily(pool,'handle')
@@ -76,7 +76,7 @@ class Probe(app_manager.RyuApp):
             ret = keyx
         return ret
         
-    def handle_get_id_viaBilling(self,pool,key):
+    def handle_get_id_viaBilling(self,key):
         # if provided a column value key, get this token id
         ret = None
         token = ColumnFamily(pool,'handle')
@@ -87,7 +87,7 @@ class Probe(app_manager.RyuApp):
             ret = keyx
         return ret
     
-    def handle_get_id_viaNetwork(self,pool,key):
+    def handle_get_id_viaNetwork(self,key):
         # if provided a column value key, get this token id
         ret = None
         token = ColumnFamily(pool,'handle')
@@ -99,20 +99,20 @@ class Probe(app_manager.RyuApp):
         return ret
     
     ## get info_id
-    def handle_get_infoid(self,pool,key):
+    def handle_get_infoid(self,key):
         handle = ColumnFamily(pool,'handle');
         data = handle.get(key,columns=['info_item_id'])
         return data.items()[0][1]
     
     ## get network_id
     
-    def handle_get_networkid(self,pool,key):
+    def handle_get_networkid(self,key):
         handle = ColumnFamily(pool,'handle');
         data = handle.get(key,columns=['network_item_id'])
         return data.items()[0][1]
     
     ## get billing_id
-    def handle_get_billingid(self,pool,key):
+    def handle_get_billingid(self,key):
         handlehandle = ColumnFamily(pool,'handle');
         data = handle.get(key,columns=['billing_item_id'])
         return data.items()[0][1]
@@ -131,7 +131,7 @@ class Probe(app_manager.RyuApp):
 ##########################    
     ### NETWORK INFO TABLE
     
-    def network_get_id_viaAuth(self,pool,key):   
+    def network_get_id_viaAuth(self,key):   
         # if provided a column value key, get this token id
         ret = None
         token = ColumnFamily(pool,'network_info')
@@ -142,7 +142,7 @@ class Probe(app_manager.RyuApp):
             ret = keyx
         return ret
         
-    def network_get_id_viaService(self,pool,key):   
+    def network_get_id_viaService(self,key):   
         # if provided a column value key, get this token id
         ret = None
         token = ColumnFamily(pool,'network_info')
@@ -153,7 +153,7 @@ class Probe(app_manager.RyuApp):
             ret = keyx
         return ret
         
-    def network_get_id_viaSession(self,pool,key):   
+    def network_get_id_viaSession(self,key):   
         # if provided a column value key, get this token id
         ret = None
         token = ColumnFamily(pool,'network_info')
@@ -165,49 +165,49 @@ class Probe(app_manager.RyuApp):
         return ret
 
     ## get service_id
-    def network_get_serviceid(self,pool,key):
+    def network_get_serviceid(self,key):
         handlehandle = ColumnFamily(pool,'network_info');
         data = handle.get(key,columns=['service_id'])
         return data.items()[0][1]
     
     ## get auth_item_id
-    def network_get_authid(self,pool,key):
+    def network_get_authid(self,key):
         handlehandle = ColumnFamily(pool,'network_info');
         data = handle.get(key,columns=['auth_item_id'])
         return data.items()[0][1]    
     
     ## get session_id
-    def network_get_sessionid(self,pool,key):
+    def network_get_sessionid(self,key):
         handlehandle = ColumnFamily(pool,'network_info');
         data = handle.get(key,columns=['session_id'])
         return data.items()[0][1]
     
     ## get cvid
-    def network_get_cvid(self,pool,key):
+    def network_get_cvid(self,key):
         handlehandle = ColumnFamily(pool,'network_info');
         data = handle.get(key,columns=['cvid'])
         return data.items()[0][1]
     
     ## get svid
-    def network_get_svid(self,pool,key):
+    def network_get_svid(self,key):
         handlehandle = ColumnFamily(pool,'network_info');
         data = handle.get(key,columns=['svid'])
         return data.items()[0][1]
     
     ## get order_num
-    def network_get_ordernum(self,pool,key):
+    def network_get_ordernum(self,key):
         handlehandle = ColumnFamily(pool,'network_info');
         data = handle.get(key,columns=['order_num'])
         return data.items()[0][1]
     
     ## get static_IP
-    def network_get_staticip(self,pool,key):
+    def network_get_staticip(self,key):
         handlehandle = ColumnFamily(pool,'network_info');
         data = handle.get(key,columns=['static_ip'])
         return data.items()[0][1]
     
     ## get lan_type
-    def network_get_lantype(self,pool,key):
+    def network_get_lantype(self,key):
         handlehandle = ColumnFamily(pool,'network_info');
         data = handle.get(key,columns=['lan_type'])
         return data.items()[0][1]
@@ -223,9 +223,7 @@ class Probe(app_manager.RyuApp):
     ### AUTHENTICATOR TABLE
 
     ## get token_id
-
-    def authenticator_get_token_id(self,pool,key):
-        
+    def authenticator_get_token_id(self,key):
         # if provided a column value key, get this token id
         ret = None
         token = ColumnFamily(pool,'authenticator')
@@ -237,21 +235,21 @@ class Probe(app_manager.RyuApp):
         return ret
     
     ## get token
-    def authenticator_get_token(self,pool,key):
+    def authenticator_get_token(self,key):
         # if provided a row key, get this token
         token = ColumnFamily(pool,'authenticator');
         data = token.get(key,columns=['atoken'])
         return data.items()[0][1]
             
     ## get device
-    def authenticator_get_device(self,pool,key):
+    def authenticator_get_device(self,key):
         # if provided a row key, get this token
         token = ColumnFamily(pool,'authenticator');
         data = token.get(key,columns=['device'])
         return data.items()[0][1]
     
     ## get auth_type
-    def authenticator_get_device(self,pool,key):
+    def authenticator_get_device(self,key):
         # if provided a row key, get this token
         token = ColumnFamily(pool,'authenticator');
         data = token.get(key,columns=['atoken'])
@@ -261,7 +259,7 @@ class Probe(app_manager.RyuApp):
     ### AUTHENTICATOR INFO TABLE
 
     ## get auth_item_id
-    def authenticatorlist_get_id(self,pool,key):
+    def authenticatorlist_get_id(self,key):
         ret = None
         token = ColumnFamily(pool,'authenticators_info')
         expr = create_index_expression('token_id',key)
@@ -272,7 +270,7 @@ class Probe(app_manager.RyuApp):
         return ret
     
     ## get token_id
-    def authenticatorlist_get_token_id(self,pool,key):
+    def authenticatorlist_get_token_id(self,key):
         handle = ColumnFamily(pool,'authenticators_info');
         data = handle.get(key,columns=['token_id'])
         return data.items()[0][1]
