@@ -181,7 +181,7 @@ class Carrier(app_manager.RyuApp):
                 ## else we have no awareness about who is trying to send this packet through our 
                 ## BRAS - drop it on the floor
                 self.logger.info("[ADMIN] Client '%s' is not a valid client!", eth.src)
-                break
+                return
                 
         d_pkt = packet.Packet(array.array('B', msg.data)) # detailed packet
         
@@ -205,9 +205,9 @@ class Carrier(app_manager.RyuApp):
                 ## add control flows for dhcp messages
                 self.logger.info("[ADMIN] Add DHCP control flows between DHCP Server and all clients")
                 actions = [parser.OFPActionOutput(DHCP_SERVER_OUT_PORT)]
-                match = parser.OFPMatch(eth_dst='ff:ff:ff:ff:ff:ff', udp_src=68, udp_dst=67)
+                match = parser.OFPMatch(eth_dst='ff:ff:ff:ff:ff:ff', eth_type=0x0800, ip_proto=17, udp_src=68, udp_dst=67)
                 self.add_flow(datapath,200,match,actions)
-                match = parser.OFPMatch(eth_dst=eth.src, udp_src=68, udp_dst=67) #eth_dst = DHCP server
+                match = parser.OFPMatch(eth_dst=eth.src, eth_type=0x0800, ip_proto=17, udp_src=68, udp_dst=67) #eth_dst = DHCP server
                 self.add_flow(datapath,200,match,actions)
                 DHCP_SERVER_FLOW = True
         
