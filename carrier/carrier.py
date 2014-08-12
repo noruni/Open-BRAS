@@ -182,21 +182,22 @@ class Carrier(app_manager.RyuApp):
         dhcp_nak = i.detect_dhcp_nak(pkt)
         dhcp_dec = i.detect_dhcp_decline(pkt)
         dhcp_rel = i.detect_dhcp_release(pkt)
-        
+
+##############################################################        
         if eth.src == self.DHCP_SERVER_MAC and not DHCP_SERVER_DISCOVERED:
             DHCP_SERVER_OUT_PORT = in_port
             self.logger.info("[ADMIN] Discovered the local DHCP server source port on local bridge -> port %s",DHCP_SERVER_OUT_PORT)
             self.mac_to_port[dpid][eth.src] = in_port
             DHCP_SERVER_DISCOVERED = True
         
-        
+##############################################################        
         if eth.src == self.ROUTER_MAC and not WAN_ROUTER_DISCOVERED:
             WAN_OUT_PORT = in_port
             self.logger.info("[ADMIN] Discovered the WAN accessible port on local bridge -> port %s",WAN_OUT_PORT)
             self.mac_to_port[dpid][eth.src] = in_port
             WAN_ROUTER_DISCOVERED = True
             
-        
+##############################################################        
         if dhcp_d and DHCP_SERVER_DISCOVERED:
             self.logger.info("[ADMIN] [DHCPD] DHCP Discover came in from client source MAC: '%s'", eth.src)
 
@@ -221,7 +222,7 @@ class Carrier(app_manager.RyuApp):
             self.logger.info("dhcp_d -> packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
             datapath.send_msg(out)
         
-        
+##############################################################       
         if dhcp_o and DHCP_SERVER_DISCOVERED:
             protocols = i.get_protocols(pkt) 
             ipv4 = protocols['ipv4']
@@ -243,7 +244,7 @@ class Carrier(app_manager.RyuApp):
             self.logger.info("dhcp_o -> packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
             datapath.send_msg(out)
 
-
+##############################################################
         if dhcp_r and DHCP_SERVER_DISCOVERED:
             protocols = i.get_protocols(pkt) 
             ipv4 = protocols['ipv4']
@@ -269,7 +270,7 @@ class Carrier(app_manager.RyuApp):
                 self.logger.info("dhcp_r -> packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
                 datapath.send_msg(out)
             
-
+##############################################################
         if dhcp_a and DHCP_SERVER_DISCOVERED:
             protocols = i.get_protocols(pkt) 
             ipv4 = protocols['ipv4']
@@ -295,12 +296,6 @@ class Carrier(app_manager.RyuApp):
             self.logger.info("[ADMIN] dhcp_a Removing temporary flow between DHCP Server and client '%s'", eth.dst)
             match = parser.OFPMatch(in_port=self.mac_to_port[dpid][eth.dst],eth_src=eth.dst,eth_dst='ff:ff:ff:ff:ff:ff')
             self.delete_flow(datapath,2,match)
-            
-            ## add control flow for dhcp release message
-            self.logger.info("[ADMIN] Add DHCP control flow between DHCP Server and client '%s'", eth.dst)
-            actions = [parser.OFPActionOutput(DHCP_SERVER_OUT_PORT)]
-            match = parser.OFPMatch(eth_src=eth.dst,eth_dst=eth.src)
-            self.add_flow(datapath,200,match,actions)
 
             if WAN_FLOW == False:
                 ## create WAN-accessible flows here
@@ -319,7 +314,7 @@ class Carrier(app_manager.RyuApp):
                 
                 WAN_FLOW = True
             
-            
+##############################################################            
         if dhcp_nak and DHCP_SERVER_DISCOVERED:
             ## remove any lingering temporary flows here
             ## if a nack is received then the initialisation process starts over
@@ -327,7 +322,7 @@ class Carrier(app_manager.RyuApp):
             match = parser.OFPMatch(in_port=self.mac_to_port[dpid][eth.dst],eth_src=eth.dst,eth_dst='ff:ff:ff:ff:ff:ff')
             self.delete_flow(datapath,2,match)        
             
-
+##############################################################
         if dhcp_dec and DHCP_SERVER_DISCOVERED:
             ## forward the decline to the server 
             if eth.dst in self.mac_to_port[dpid]:
@@ -351,7 +346,7 @@ class Carrier(app_manager.RyuApp):
             match = parser.OFPMatch(in_port=in_port,eth_src=eth.src,eth_dst='ff:ff:ff:ff:ff:ff')
             self.delete_flow(datapath,2,match)
             
-            
+ ##############################################################           
         if dhcp_rel and DHCP_SERVER_DISCOVERED:
             ## remove any lingering temporary flows here
             self.logger.info("[ADMIN] dhcp_rel Removing temporary flow between DHCP Server and client '%s'", eth.dst)
@@ -367,7 +362,3 @@ class Carrier(app_manager.RyuApp):
             ## WAN --> client
             match = parser.OFPMatch(eth_dst=eth.dst)
             self.delete_flow(datapath,101,match)
-            
-            ## DHCP Release control flow
-            match = parser.OFPMatch(eth_src=eth.dst,eth_dst=eth.src)
-            self.delete_flow(datapath,200,match)
