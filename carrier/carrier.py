@@ -50,7 +50,6 @@ class Carrier(app_manager.RyuApp):
     i = interceptor.Interceptor()
     pr = probe.Probe()
 
-
     def __init__(self, *args, **kwargs):
         super(Carrier, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
@@ -59,7 +58,7 @@ class Carrier(app_manager.RyuApp):
         configFileName = '/root/binaries/ryu/ryu/app/carrier/carrier.cfg'
         self.logger.info("[ADMIN] (Carrier) Loading configuration file [%s]" % (configFileName))
         config.read(configFileName)
-        #anonymouse unicast addressing
+        #anonymous unicast addressing
         self.CONTROLLER_SPECIAL_IP = config.get('global', 'CONTROLLER_SPECIAL_IP')
         self.CONTROLLER_SPECIAL_MAC = config.get('global', 'CONTROLLER_SPECIAL_MAC')
         #get information about the router
@@ -92,7 +91,6 @@ class Carrier(app_manager.RyuApp):
             i.discover_dhcp_server(dp,ofproto,parser)  
             self.discover_router(dp,ofproto,parser)
             DB_CONNECTION_LIVE = pr.connect()
-            self.logger.info("Is DB_CONNECTION_LIVE? '%s'",DB_CONNECTION_LIVE )
         elif ev.state == DEAD_DISPATCHER:
             if dp.id is None:
                 return
@@ -100,7 +98,6 @@ class Carrier(app_manager.RyuApp):
 
     
     def add_flow(self, datapath, priority, match, actions):
-        #self.logger.info("[ADMIN] add_flow(self, '%s', '%s', '%s', '%s')", datapath, priority, match, actions)
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
         inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,actions)]
@@ -169,7 +166,6 @@ class Carrier(app_manager.RyuApp):
         
         self.logger.info("packet in dpid:'%s' src:'%s' dst:'%s' in_port:'%s'", dpid, eth.src, eth.dst, in_port)
         
-        self.logger.info("Is DB_CONNECTION_LIVE? '%s'",DB_CONNECTION_LIVE )
         if DB_CONNECTION_LIVE:
             ## check if MAC is in database (basic DB function test)
             client_check = pr.authenticator_get_token_id(str(eth.src))
@@ -222,7 +218,7 @@ class Carrier(app_manager.RyuApp):
                 data = msg.data
             
             out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,in_port=in_port, actions=actions, data=data)
-            self.logger.info("packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
+            self.logger.info("dhcp_d -> packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
             datapath.send_msg(out)
         
         
@@ -244,7 +240,7 @@ class Carrier(app_manager.RyuApp):
                 data = msg.data
             
             out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,in_port=in_port, actions=actions, data=data)
-            self.logger.info("packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
+            self.logger.info("dhcp_o -> packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
             datapath.send_msg(out)
 
 
@@ -270,7 +266,7 @@ class Carrier(app_manager.RyuApp):
                     data = msg.data
             
                 out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,in_port=in_port, actions=actions, data=data)
-                self.logger.info("packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
+                self.logger.info("dhcp_r -> packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
                 datapath.send_msg(out)
             
 
@@ -292,13 +288,19 @@ class Carrier(app_manager.RyuApp):
                 data = msg.data
             
             out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,in_port=in_port, actions=actions, data=data)
-            self.logger.info("packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
+            self.logger.info("dhcp_a -> packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
             datapath.send_msg(out)
             
             ## remove temporary flows here
             self.logger.info("[ADMIN] Removing temporary flow between DHCP Server and client '%s'", eth.dst)
             match = parser.OFPMatch(in_port=in_port,eth_src=eth.src,eth_dst='ff:ff:ff:ff:ff:ff')
             self.delete_flow(datapath,2,match)
+            
+            ## add control flow for dhcp release message
+            self.logger.info("[ADMIN] Add DHCP control flow between DHCP Server and client '%s'", eth.dst)
+            actions = [parser.OFPActionOutput(DHCP_SERVER_OUT_PORT)]
+            match = parser.OFPMatch(eth_src=eth.dst,eth_dst=eth.src)
+            self.add_flow(datapath,200,match,actions)
 
             if WAN_FLOW == False:
                 ## create WAN-accessible flows here
@@ -341,7 +343,7 @@ class Carrier(app_manager.RyuApp):
                 data = msg.data
             
             out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,in_port=in_port, actions=actions, data=data)
-            self.logger.info("packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
+            self.logger.info("dhcp_dec -> packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
             datapath.send_msg(out)
 
             ## remove any lingering temporary flows here
@@ -365,3 +367,7 @@ class Carrier(app_manager.RyuApp):
             ## WAN --> client
             match = parser.OFPMatch(eth_dst=eth.dst)
             self.delete_flow(datapath,101,match)
+            
+            ## DHCP Release control flow
+            match = parser.OFPMatch(eth_src=eth.dst,eth_dst=eth.src)
+            self.delete_flow(datapath,200,match)
