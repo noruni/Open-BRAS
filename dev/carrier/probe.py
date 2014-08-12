@@ -18,6 +18,8 @@ import pycassa
 
 from pycassa.pool import ConnectionPool
 from pycassa.columnfamily import ColumnFamily
+from pycassa.index import create_index_expression
+from pycassa.index import create_index_clause
 from ryu.base import app_manager
 
 class Probe(app_manager.RyuApp):
@@ -64,21 +66,22 @@ class Probe(app_manager.RyuApp):
     
     ## get info_id
     def handle_get_infoid(self,pool,key):
-        col_fam = ColumnFamily(pool,'handle');
-        readData = col_fam.get(key,columns=['info_item_id'])
-        return readData.items()[0][1]
+        handle = ColumnFamily(pool,'handle');
+        data = handle.get(key,columns=['info_item_id'])
+        return data.items()[0][1]
     
     ## get network_id
+    
     def handle_get_networkid(self,pool,key):
-        col_fam = ColumnFamily(pool,'handle');
-        readData = col_fam.get(key,columns=['network_item_id'])
-        return readData.items()[0][1]
+        handle = ColumnFamily(pool,'handle');
+        data = handle.get(key,columns=['network_item_id'])
+        return data.items()[0][1]
     
     ## get billing_id
     def handle_get_billingid(self,pool,key):
-        col_fam = ColumnFamily(pool,'handle');
-        readData = col_fam.get(key,columns=['billing_item_id'])
-        return readData.items()[0][1]
+        handlehandle = ColumnFamily(pool,'handle');
+        data = handle.get(key,columns=['billing_item_id'])
+        return data.items()[0][1]
     
     
 ##########################
@@ -113,10 +116,36 @@ class Probe(app_manager.RyuApp):
 ##########################    
     ### AUTHENTICATOR TABLE
 
-    ## get auth_id
+    ## get token_id
+    def authenticator_get_token_id(self,pool,key):
+        # if provided a column value key, get this token id
+        token = ColumnFamily(pool,'authenticator')
+        expr = create_index_expression('atoken',key)
+        clause = create_index_clause([expr])
+        result = token.get_indexed_slices(clause)
+        for keyx,columnx in result;
+            return keyx
+    
     ## get token
+    def authenticator_get_token(self,pool,key):
+        # if provided a row key, get this token
+        token = ColumnFamily(pool,'authenticator');
+        data = token.get(key,columns=['atoken'])
+        return data.items()[0][1]
+            
     ## get device
+    def authenticator_get_device(self,pool,key):
+        # if provided a row key, get this token
+        token = ColumnFamily(pool,'authenticator');
+        data = token.get(key,columns=['device'])
+        return data.items()[0][1]
+    
     ## get auth_type
+    def authenticator_get_device(self,pool,key):
+        # if provided a row key, get this token
+        token = ColumnFamily(pool,'authenticator');
+        data = token.get(key,columns=['atoken'])
+        return data.items()[0][1]
 
 ##########################    
     ### AUTHENTICATOR INFO TABLE
