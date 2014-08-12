@@ -29,6 +29,7 @@ class Probe(app_manager.RyuApp):
     
     def connect(self):
         pool = pycassa.ConnectionPool(keyspace='customers',server_list=['127.0.0.1:9160'])
+        self.logger.info("[ADMIN] Successfully connected to cassandra instance")
 
     
     def close(self):
