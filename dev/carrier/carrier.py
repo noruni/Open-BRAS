@@ -97,7 +97,7 @@ class Carrier(app_manager.RyuApp):
 
     
     def add_flow(self, datapath, priority, match, actions):
-        self.logger.info("[ADMIN] add_flow(self, '%s', '%s', '%s', '%s')", datapath, priority, match, actions)
+        #self.logger.info("[ADMIN] add_flow(self, '%s', '%s', '%s', '%s')", datapath, priority, match, actions)
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
         inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,actions)]
@@ -106,7 +106,7 @@ class Carrier(app_manager.RyuApp):
 
 
     def delete_flow(self, datapath, priority, match): 
-        self.logger.info("[ADMIN] delete_flow(self, '%s', '%s', '%s')", datapath, priority, match)
+        #self.logger.info("[ADMIN] delete_flow(self, '%s', '%s', '%s')", datapath, priority, match)
         ofproto = datapath.ofproto 
         parser = datapath.ofproto_parser
         mod = parser.OFPFlowMod(datapath, command=ofproto.OFPFC_DELETE, out_port=ofproto.OFPP_ANY, out_group=ofproto.OFPG_ANY,priority=priority, match=match)
@@ -145,6 +145,9 @@ class Carrier(app_manager.RyuApp):
         global DHCP_SERVER_OUT_PORT
         global DHCP_SERVER_DISCOVERED
         global DHCP_SERVER_FLOW
+        global WAN_OUT_PORT
+        global WAN_ROUTER_DISCOVERED
+        global WAN_FLOW
 
         msg = ev.msg
         datapath = msg.datapath
@@ -281,21 +284,32 @@ class Carrier(app_manager.RyuApp):
             datapath.send_msg(out)
             
             ## remove temporary flows here
+            self.logger.info("[ADMIN] Removing temporary flow between DHCP Server and client '%s'", eth.dst)
             match = parser.OFPMatch(in_port=in_port,eth_src=eth.src,eth_dst='ff:ff:ff:ff:ff:ff')
             self.delete_flow(datapath,2,match)
-            
-            ## create WAN-accessible flows here
-            actions = [parser.OFPActionOutput(WAN_OUT_PORT)]
 
-            if WAN_FLOW == False:    
-                match = parser.OFPMatch(in_port=in_port, eth_src=eth.src)
+            if WAN_FLOW == False:
+                ## create WAN-accessible flows here
+                
+                ## client --> WAN
+                self.logger.info("[ADMIN] Adding WAN-accessible flow for client '%s'", eth.dst)
+                actions = [parser.OFPActionOutput(WAN_OUT_PORT)]    
+                match = parser.OFPMatch(in_port=self.mac_to_port[dpid][eth.dst], eth_src=eth.dst)
                 self.add_flow(datapath, 100, match, actions)
+                
+                ## WAN --> client
+                self.logger.info("[ADMIN] Adding WAN-->Client flow") 
+                actions = [parser.OFPActionOutput(self.mac_to_port[dpid][eth.dst])]
+                match = parser.OFPMatch(eth_dst=eth.dst)
+                self.add_flow(datapath,101,match,actions)
+                
                 WAN_FLOW = True
             
             
         if dhcp_nak and DHCP_SERVER_DISCOVERED:
             ## remove any lingering temporary flows here
             ## if a nack is received then the initialisation process starts over
+            self.logger.info("[ADMIN] Removing temporary flow between DHCP Server and client '%s'", eth.dst)
             match = parser.OFPMatch(in_port=in_port,eth_src=eth.src,eth_dst='ff:ff:ff:ff:ff:ff')
             self.delete_flow(datapath,2,match)        
             
@@ -319,15 +333,23 @@ class Carrier(app_manager.RyuApp):
             datapath.send_msg(out)
 
             ## remove any lingering temporary flows here
+            self.logger.info("[ADMIN] Removing temporary flow between DHCP Server and client '%s'", eth.dst)            
             match = parser.OFPMatch(in_port=in_port,eth_src=eth.src,eth_dst='ff:ff:ff:ff:ff:ff')
             self.delete_flow(datapath,2,match)
             
             
         if dhcp_rel and DHCP_SERVER_DISCOVERED:
             ## remove any lingering temporary flows here
+            self.logger.info("[ADMIN] Removing temporary flow between DHCP Server and client '%s'", eth.dst)
             match = parser.OFPMatch(in_port=in_port,eth_src=eth.src,eth_dst='ff:ff:ff:ff:ff:ff')
             self.delete_flow(datapath,2,match)
             
             ## remove any WAN-accessible flows here
-            match = parser.OFPMatch(in_port=in_port,eth_src=eth.src)
+            self.logger.info("[ADMIN] Removing temporary flows between WAN and client '%s'", eth.dst)
+            ## client --> WAN
+            match = parser.OFPMatch(in_port=self.mac_to_port[dpid][eth.dst],eth_src=eth.dst)
             self.delete_flow(datapath,100,match)
+            
+            ## WAN --> client
+            match = parser.OFPMatch(eth_dst=eth.dst)
+            self.delete_flow(datapath,101,match)
