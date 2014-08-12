@@ -106,7 +106,7 @@ class Carrier(app_manager.RyuApp):
 
 
     def delete_flow(self, datapath, priority, match): 
-        #self.logger.info("[ADMIN] delete_flow(self, '%s', '%s', '%s')", datapath, priority, match)
+        self.logger.info("[ADMIN] delete_flow(self, '%s', '%s', '%s')", datapath, priority, match)
         ofproto = datapath.ofproto 
         parser = datapath.ofproto_parser
         mod = parser.OFPFlowMod(datapath, command=ofproto.OFPFC_DELETE, out_port=ofproto.OFPP_ANY, out_group=ofproto.OFPG_ANY,priority=priority, match=match)
@@ -292,8 +292,8 @@ class Carrier(app_manager.RyuApp):
             datapath.send_msg(out)
             
             ## remove temporary flows here
-            self.logger.info("[ADMIN] Removing temporary flow between DHCP Server and client '%s'", eth.dst)
-            match = parser.OFPMatch(in_port=in_port,eth_src=eth.src,eth_dst='ff:ff:ff:ff:ff:ff')
+            self.logger.info("[ADMIN] dhcp_a Removing temporary flow between DHCP Server and client '%s'", eth.dst)
+            match = parser.OFPMatch(in_port=self.mac_to_port[dpid][eth.dst],eth_src=eth.dst,eth_dst='ff:ff:ff:ff:ff:ff')
             self.delete_flow(datapath,2,match)
             
             ## add control flow for dhcp release message
@@ -323,8 +323,8 @@ class Carrier(app_manager.RyuApp):
         if dhcp_nak and DHCP_SERVER_DISCOVERED:
             ## remove any lingering temporary flows here
             ## if a nack is received then the initialisation process starts over
-            self.logger.info("[ADMIN] Removing temporary flow between DHCP Server and client '%s'", eth.dst)
-            match = parser.OFPMatch(in_port=in_port,eth_src=eth.src,eth_dst='ff:ff:ff:ff:ff:ff')
+            self.logger.info("[ADMIN] dhcp_nak Removing temporary flow between DHCP Server and client '%s'", eth.dst)
+            match = parser.OFPMatch(in_port=self.mac_to_port[dpid][eth.dst],eth_src=eth.dst,eth_dst='ff:ff:ff:ff:ff:ff')
             self.delete_flow(datapath,2,match)        
             
 
@@ -347,19 +347,19 @@ class Carrier(app_manager.RyuApp):
             datapath.send_msg(out)
 
             ## remove any lingering temporary flows here
-            self.logger.info("[ADMIN] Removing temporary flow between DHCP Server and client '%s'", eth.dst)            
+            self.logger.info("[ADMIN] dhcp_dec Removing temporary flow between DHCP Server and client '%s'", eth.dst)            
             match = parser.OFPMatch(in_port=in_port,eth_src=eth.src,eth_dst='ff:ff:ff:ff:ff:ff')
             self.delete_flow(datapath,2,match)
             
             
         if dhcp_rel and DHCP_SERVER_DISCOVERED:
             ## remove any lingering temporary flows here
-            self.logger.info("[ADMIN] Removing temporary flow between DHCP Server and client '%s'", eth.dst)
+            self.logger.info("[ADMIN] dhcp_rel Removing temporary flow between DHCP Server and client '%s'", eth.dst)
             match = parser.OFPMatch(in_port=in_port,eth_src=eth.src,eth_dst='ff:ff:ff:ff:ff:ff')
             self.delete_flow(datapath,2,match)
             
             ## remove any WAN-accessible flows here
-            self.logger.info("[ADMIN] Removing temporary flows between WAN and client '%s'", eth.dst)
+            self.logger.info("[ADMIN] dhcp_rel Removing temporary flows between WAN and client '%s'", eth.dst)
             ## client --> WAN
             match = parser.OFPMatch(in_port=self.mac_to_port[dpid][eth.dst],eth_src=eth.dst)
             self.delete_flow(datapath,100,match)
