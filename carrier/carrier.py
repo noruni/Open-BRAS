@@ -46,9 +46,10 @@ DB_CONNECTION_LIVE = False
 class Carrier(app_manager.RyuApp):
         
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
-    global i, pr
+    global i, pr, ob
     i = interceptor.Interceptor()
     pr = probe.Probe()
+    ob = observer.Observer()
 
     def __init__(self, *args, **kwargs):
         super(Carrier, self).__init__(*args, **kwargs)

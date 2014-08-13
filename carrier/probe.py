@@ -238,6 +238,7 @@ class Probe(app_manager.RyuApp):
     ## get serv_description
     ## get handover
     ## get variant
+    ## get hvid {hand over vlan}
 
 ##########################    
     ### AUTHENTICATOR TABLE
