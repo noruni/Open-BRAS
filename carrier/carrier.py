@@ -122,17 +122,25 @@ class Carrier(app_manager.RyuApp):
             flows[counter] = {'table_id':stat.table_id, 'duration_sec':stat.duration_sec, 'duration_nsec':stat.duration_nsec,
         'priority':stat.priority, 'idle_timeout':stat.idle_timeout, 'hard_timeout':stat.hard_timeout, 'flags':stat.flags, 
     'cookie':stat.cookie, 'packet_count':stat.packet_count, 'byte_count':stat.byte_count, 'match':stat.match, 'instructions':stat.instructions}
-            counter++
-        self.logger.debug('FlowStats: %s \n', flows)
+            counter=counter+1
+        for keys, values in flows.items():
+            self.logger.debug('FlowStats %d: %s \n', keys, values)
     
     
-    def send_flow_stats_request(self, datapath, eth_dst):
+    def send_flow_stats_request(self, datapath, eth_flag, eth_val):
         ofp = datapath.ofproto
         ofp_parser = datapath.ofproto_parser
 
+        if flag == 'eth_dst':
+            self.logger.debug("flow_stats_request eth_dst = '%s'",val)
+            match = ofp_parser.OFPMatch(eth_dst=val)
+        elif flag == 'eth_src':
+            self.logger.debug("flow_stats_request eth_src = '%s'",val)
+            match = ofp_parser.OFPMatch(eth_src=val)
+
         cookie = cookie_mask = 0
-        self.logger.debug("flow_stats_request eth_dst = '%s'",eth_dst)
-        match = ofp_parser.OFPMatch(eth_dst=eth_dst)
+        #self.logger.debug("flow_stats_request eth_dst = '%s'",eth_dst)
+        #match = ofp_parser.OFPMatch(eth_dst=eth_dst)
         req = ofp_parser.OFPFlowStatsRequest(datapath, 0,
                                              ofp.OFPTT_ALL,
                                              ofp.OFPP_ANY, ofp.OFPG_ANY,
@@ -189,7 +197,7 @@ class Carrier(app_manager.RyuApp):
         
         dpid = datapath.id
         self.mac_to_port.setdefault(dpid, {})
-        self.mac_to_port[dpid][eth.src] = in_port
+        
         
         self.logger.info("packet in dpid:'%s' src:'%s' dst:'%s' in_port:'%s'", dpid, eth.src, eth.dst, in_port)
         
@@ -203,12 +211,25 @@ class Carrier(app_manager.RyuApp):
                 self.logger.info("[ADMIN] Client '%s' is valid!", eth.src)   
                 if db_check != None:
                     self.logger.info("[ADMIN] Client '%s' is a customer in database!", eth.src)
-                self.send_flow_stats_request(datapath,eth.src)
+                    
+                    try:
+                        self.logger.info("[ADMIN] mac_to_port %s", self.mac_to_port[dpid][eth.src])
+                        if self.mac_to_port[dpid][eth.src] != in_port:
+                            self.logger.info("[ADMIN] Port mismatch between this eth.src %s and in_port %s; binding is %s", eth.src, in_port, self.mac_to_port[dpid][eth.src])
+                            
+                            
+                    except KeyError as e:
+                        self.logger.info("[ADMIN] mac_to_port currently unbound")
+
+                    #self.send_flow_stats_request(datapath,'eth_src',eth.src) ## matches src of client (priority 101)
+                    #self.send_flow_stats_request(datapath,'eth_dst',eth.src) ## matches dst of client (priority 100)
             else:
                 ## else we have no awareness about who is trying to send this packet through our 
                 ## BRAS - drop it on the floor
                 self.logger.info("[ADMIN] Client '%s' is not a valid client!", eth.src)
                 return
+        
+        self.mac_to_port[dpid][eth.src] = in_port
                 
         d_pkt = packet.Packet(array.array('B', msg.data)) # detailed packet
         
