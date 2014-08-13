@@ -195,24 +195,24 @@ class Carrier(app_manager.RyuApp):
         self.mac_to_port.setdefault(dpid, {})
         
         self.logger.info("packet in dpid:'%s' src:'%s' dst:'%s' in_port:'%s'", dpid, eth.src, eth.dst, in_port)
-        db_check = None
+        token_id = None
         
         if DB_CONNECTION_LIVE:
            
             ## check if MAC is in database (basic DB function test)
             ## or if it's a control mac address
-            db_check = pr.authenticator_get_token_id(str(eth.src))
+            token_id = pr.authenticator_get_token_id(str(eth.src))
 
         #else we need to need handle this sometime
 
             
-        if db_check != None or str(eth.src) == self.CONTROLLER_MAC or str(eth.src) == self.ROUTER_MAC or str(eth.src) == self.DHCP_SERVER_MAC:
+        if token_id != None or str(eth.src) == self.CONTROLLER_MAC or str(eth.src) == self.ROUTER_MAC or str(eth.src) == self.DHCP_SERVER_MAC:
             
             # if we get here then the mac address associated with this
             # packet is in fact in safe
             self.logger.info("[ADMIN] MAC Address '%s' is permitted", eth.src)   
 
-            if db_check != None: #if client packet
+            if token_id != None: #if client packet
                 self.logger.info("[ADMIN] Client '%s' is a customer in database!", eth.src)
                 
                 ## detect port mismatch 
@@ -228,6 +228,25 @@ class Carrier(app_manager.RyuApp):
                         
                 except KeyError as e:
                     self.logger.info("[ADMIN] mac_to_port currently unbound, first time mac seen")
+
+                # so we have a confirmed client at this point
+                # how do we handle this particular client?
+                
+                #index into authenticators
+                authenticators_id = pr.authenticatorlist_get_id(token_id)
+                
+                #index into network information
+                network_id = pr.network_get_id_viaAuth(authenticators_id)
+                
+                #get lan_type
+                lan_type = pr.network_get_lantype(network_id)
+                
+                #do stuff based on lan_type
+                if lan_type == "DHCP":
+                    #blah
+                elif lan_type == "VLAN":
+                    #blahblah
+
 
         else:
             ## else we have no awareness about who is trying to send this packet through our 
