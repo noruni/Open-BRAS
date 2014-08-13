@@ -114,6 +114,7 @@ class Carrier(app_manager.RyuApp):
         mod = parser.OFPFlowMod(datapath, command=ofproto.OFPFC_DELETE, out_port=ofproto.OFPP_ANY, out_group=ofproto.OFPG_ANY,priority=priority, match=match)
         datapath.send_msg(mod)
     
+    
     @set_ev_cls(ofp_event.EventOFPFlowStatsReply, MAIN_DISPATCHER)
     def extract_flow_information(self, ev):
         flows = {}
@@ -139,14 +140,9 @@ class Carrier(app_manager.RyuApp):
             match = ofp_parser.OFPMatch(eth_src=val)
 
         cookie = cookie_mask = 0
-        #self.logger.debug("flow_stats_request eth_dst = '%s'",eth_dst)
-        #match = ofp_parser.OFPMatch(eth_dst=eth_dst)
-        req = ofp_parser.OFPFlowStatsRequest(datapath, 0,
-                                             ofp.OFPTT_ALL,
-                                             ofp.OFPP_ANY, ofp.OFPG_ANY,
-                                             cookie, cookie_mask,
-                                             match)
+        req = ofp_parser.OFPFlowStatsRequest(datapath, 0,ofp.OFPTT_ALL,ofp.OFPP_ANY, ofp.OFPG_ANY,cookie, cookie_mask,match)
         datapath.send_msg(req)
+    
     
     def discover_router(self, datapath, ofproto, parser):
         ##arp for the router first, to learn its out port
@@ -198,36 +194,46 @@ class Carrier(app_manager.RyuApp):
         dpid = datapath.id
         self.mac_to_port.setdefault(dpid, {})
         
-        
         self.logger.info("packet in dpid:'%s' src:'%s' dst:'%s' in_port:'%s'", dpid, eth.src, eth.dst, in_port)
+        db_check = None
         
         if DB_CONNECTION_LIVE:
+           
             ## check if MAC is in database (basic DB function test)
             ## or if it's a control mac address
             db_check = pr.authenticator_get_token_id(str(eth.src))
-            if db_check != None or str(eth.src) == self.CONTROLLER_MAC or str(eth.src) == self.ROUTER_MAC or str(eth.src) == self.DHCP_SERVER_MAC:
-                # if we get here then the mac address associated with this
-                # packet is in fact in safe
-                self.logger.info("[ADMIN] Client '%s' is valid!", eth.src)   
-                if db_check != None:
-                    self.logger.info("[ADMIN] Client '%s' is a customer in database!", eth.src)
-                    
-                    try:
-                        self.logger.info("[ADMIN] mac_to_port %s", self.mac_to_port[dpid][eth.src])
-                        if self.mac_to_port[dpid][eth.src] != in_port:
-                            self.logger.info("[ADMIN] Port mismatch between this eth.src %s and in_port %s; binding is %s", eth.src, in_port, self.mac_to_port[dpid][eth.src])
-                            
-                            
-                    except KeyError as e:
-                        self.logger.info("[ADMIN] mac_to_port currently unbound")
 
+        #else we need to need handle this sometime
+
+            
+        if db_check != None or str(eth.src) == self.CONTROLLER_MAC or str(eth.src) == self.ROUTER_MAC or str(eth.src) == self.DHCP_SERVER_MAC:
+            
+            # if we get here then the mac address associated with this
+            # packet is in fact in safe
+            self.logger.info("[ADMIN] MAC Address '%s' is permitted", eth.src)   
+
+            if db_check != None: #if client packet
+                self.logger.info("[ADMIN] Client '%s' is a customer in database!", eth.src)
+                
+                ## detect port mismatch 
+                try:
                     #self.send_flow_stats_request(datapath,'eth_src',eth.src) ## matches src of client (priority 101)
                     #self.send_flow_stats_request(datapath,'eth_dst',eth.src) ## matches dst of client (priority 100)
-            else:
-                ## else we have no awareness about who is trying to send this packet through our 
-                ## BRAS - drop it on the floor
-                self.logger.info("[ADMIN] Client '%s' is not a valid client!", eth.src)
-                return
+                    self.logger.info("[ADMIN] mac_to_port %s", self.mac_to_port[dpid][eth.src])
+                    if self.mac_to_port[dpid][eth.src] != in_port:
+                        self.logger.info("[ADMIN] Port mismatch between this eth.src %s and in_port %s; binding is %s", eth.src, in_port, self.mac_to_port[dpid][eth.src])
+                        
+                        ## replace the flows in the flow table for this client with new port
+                        ## i.e. the host may have come up on a different port
+                        
+                except KeyError as e:
+                    self.logger.info("[ADMIN] mac_to_port currently unbound, first time mac seen")
+
+        else:
+            ## else we have no awareness about who is trying to send this packet through our 
+            ## BRAS - drop it on the floor
+            self.logger.info("[ADMIN] Client '%s' is not a valid client!", eth.src)
+            return
         
         self.mac_to_port[dpid][eth.src] = in_port
                 
