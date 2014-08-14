@@ -18,6 +18,7 @@ import time
 import ConfigParser
 
 import interceptor
+import observer
 import probe
 
 from ryu.base import app_manager
@@ -235,17 +236,20 @@ class Carrier(app_manager.RyuApp):
                 
                 #index into authenticators
                 authenticators_id = pr.authenticatorlist_get_id(token_id)
+                self.logger.info("[ADMIN] authenticators_id = '%d'",authenticators_id)
                 
                 #index into network information
                 network_id = pr.network_get_id_viaAuth(authenticators_id)
+                self.logger.info("[ADMIN] network_id = '%d'",network_id)
                 
                 #get lan_type
                 lan_type = pr.network_get_lantype(network_id)
+                self.logger.info("[ADMIN] lan_type = '%d'",lan_type)
                 
                 #do stuff based on lan_type
-                if lan_type == "DHCP":
+                #if lan_type == "DHCP":
                     #blah
-                elif lan_type == "VLAN":
+                #elif lan_type == "VLAN":
                     #blahblah
 
 
