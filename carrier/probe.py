@@ -144,10 +144,10 @@ class Probe(app_manager.RyuApp):
         # if provided a column value key, get this token id
         global pool
         ret = None
-        token = ColumnFamily(pool,'network_info')
+        network = ColumnFamily(pool,'network_info')
         expr = create_index_expression('auth_item_id',key)
         clause = create_index_clause([expr])
-        result = token.get_indexed_slices(clause)
+        result = network.get_indexed_slices(clause)
         for keyx,columnx in result:
             ret = keyx
         return ret
@@ -156,10 +156,10 @@ class Probe(app_manager.RyuApp):
         # if provided a column value key, get this token id
         global pool
         ret = None
-        token = ColumnFamily(pool,'network_info')
+        network = ColumnFamily(pool,'network_info')
         expr = create_index_expression('service_id',key)
         clause = create_index_clause([expr])
-        result = token.get_indexed_slices(clause)
+        result = network.get_indexed_slices(clause)
         for keyx,columnx in result:
             ret = keyx
         return ret
@@ -168,10 +168,10 @@ class Probe(app_manager.RyuApp):
         # if provided a column value key, get this token id
         global pool
         ret = None
-        token = ColumnFamily(pool,'network_info')
+        network = ColumnFamily(pool,'network_info')
         expr = create_index_expression('session_id',key)
         clause = create_index_clause([expr])
-        result = token.get_indexed_slices(clause)
+        result = network.get_indexed_slices(clause)
         for keyx,columnx in result:
             ret = keyx
         return ret
@@ -179,36 +179,36 @@ class Probe(app_manager.RyuApp):
     ## get service_id
     def network_get_serviceid(self,key):
         global pool
-        handlehandle = ColumnFamily(pool,'network_info');
-        data = handle.get(key,columns=['service_id'])
+        network = ColumnFamily(pool,'network_info');
+        data = network.get(key,columns=['service_id'])
         return data.items()[0][1]
     
     ## get auth_item_id
     def network_get_authid(self,key):
         global pool
-        handlehandle = ColumnFamily(pool,'network_info');
-        data = handle.get(key,columns=['auth_item_id'])
+        network = ColumnFamily(pool,'network_info');
+        data = network.get(key,columns=['auth_item_id'])
         return data.items()[0][1]    
     
     ## get session_id
     def network_get_sessionid(self,key):
         global pool
-        handlehandle = ColumnFamily(pool,'network_info');
-        data = handle.get(key,columns=['session_id'])
+        network = ColumnFamily(pool,'network_info');
+        data = network.get(key,columns=['session_id'])
         return data.items()[0][1]
     
     ## get cvid
     def network_get_cvid(self,key):
         global pool
-        handlehandle = ColumnFamily(pool,'network_info');
-        data = handle.get(key,columns=['cvid'])
+        network = ColumnFamily(pool,'network_info');
+        data = network.get(key,columns=['cvid'])
         return data.items()[0][1]
     
     ## get svid
     def network_get_svid(self,key):
         global pool
-        handlehandle = ColumnFamily(pool,'network_info');
-        data = handle.get(key,columns=['svid'])
+        network = ColumnFamily(pool,'network_info');
+        data = network.get(key,columns=['svid'])
         return data.items()[0][1]
     
     ## get order_num
@@ -221,15 +221,15 @@ class Probe(app_manager.RyuApp):
     ## get static_IP
     def network_get_staticip(self,key):
         global pool
-        handlehandle = ColumnFamily(pool,'network_info');
-        data = handle.get(key,columns=['static_ip'])
+        network = ColumnFamily(pool,'network_info');
+        data = network.get(key,columns=['static_ip'])
         return data.items()[0][1]
     
     ## get lan_type
     def network_get_lantype(self,key):
         global pool
-        handlehandle = ColumnFamily(pool,'network_info');
-        data = handle.get(key,columns=['lan_type'])
+        network = ColumnFamily(pool,'network_info');
+        data = network.get(key,columns=['lan_type'])
         return data.items()[0][1]
 
 ##########################    
@@ -248,10 +248,10 @@ class Probe(app_manager.RyuApp):
         # if provided a column value key, get this token id
         global pool
         ret = None
-        token = ColumnFamily(pool,'authenticator')
+        authenticator = ColumnFamily(pool,'authenticator')
         expr = create_index_expression('atoken',key)
         clause = create_index_clause([expr])
-        result = token.get_indexed_slices(clause)
+        result = authenticator.get_indexed_slices(clause)
         for keyx,columnx in result:
             ret = keyx
         return ret
@@ -260,24 +260,24 @@ class Probe(app_manager.RyuApp):
     def authenticator_get_token(self,key):
         # if provided a row key, get this token
         global pool
-        token = ColumnFamily(pool,'authenticator');
-        data = token.get(key,columns=['atoken'])
+        authenticator = ColumnFamily(pool,'authenticator');
+        data = authenticator.get(key,columns=['atoken'])
         return data.items()[0][1]
             
     ## get device
     def authenticator_get_device(self,key):
         # if provided a row key, get this token
         global pool
-        token = ColumnFamily(pool,'authenticator');
-        data = token.get(key,columns=['device'])
+        authenticator = ColumnFamily(pool,'authenticator');
+        data = authenticator.get(key,columns=['device'])
         return data.items()[0][1]
     
     ## get auth_type
     def authenticator_get_device(self,key):
         # if provided a row key, get this token
         global pool
-        token = ColumnFamily(pool,'authenticator');
-        data = token.get(key,columns=['atoken'])
+        authenticator = ColumnFamily(pool,'authenticator');
+        data = authenticator.get(key,columns=['atoken'])
         return data.items()[0][1]
 
 ##########################    
@@ -287,10 +287,10 @@ class Probe(app_manager.RyuApp):
     def authenticatorlist_get_id(self,key):
         global pool
         ret = None
-        token = ColumnFamily(pool,'authenticators_info')
+        authenticatorlist = ColumnFamily(pool,'authenticators_info')
         expr = create_index_expression('token_id',key)
         clause = create_index_clause([expr])
-        result = token.get_indexed_slices(clause)
+        result = authenticatorlist.get_indexed_slices(clause)
         for keyx,columnx in result:
             ret = keyx
         return ret
@@ -298,8 +298,8 @@ class Probe(app_manager.RyuApp):
     ## get token_id
     def authenticatorlist_get_token_id(self,key):
         global pool
-        handle = ColumnFamily(pool,'authenticators_info');
-        data = handle.get(key,columns=['token_id'])
+        authenticatorlist = ColumnFamily(pool,'authenticators_info');
+        data = authenticatorlist.get(key,columns=['token_id'])
         return data.items()[0][1]
 
 ##########################    
