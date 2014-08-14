@@ -25,7 +25,7 @@ from ryu.lib import addrconv
 
 class Observer(app_manager.RyuApp):
 
-	def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super(Observer, self).__init__(*args, **kwargs)
         #Let's start implementing some configuration file support
         config = ConfigParser.RawConfigParser()
@@ -36,7 +36,7 @@ class Observer(app_manager.RyuApp):
         self.portdb = None
         self.vlandb = {}
         
-        with open('vlans.yml', 'r') as stream:
+        with open('/root/binaries/ryu/ryu/app/carrier/vlans.yml', 'r') as stream:
             self.portdb = yaml.load(stream)
             
         for port in self.portdb:
