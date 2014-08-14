@@ -55,6 +55,7 @@ class Carrier(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(Carrier, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
+        self.blacklist_mac_to_port = {}
         #Let's start implementing some configuration file support
         config = ConfigParser.RawConfigParser()
         configFileName = '/root/binaries/ryu/ryu/app/carrier/carrier.cfg'
@@ -195,6 +196,7 @@ class Carrier(app_manager.RyuApp):
         
         dpid = datapath.id
         self.mac_to_port.setdefault(dpid, {})
+        self.blacklist_mac_to_port.setdefault(dpid,{})
         
         self.logger.info("packet in dpid:'%s' src:'%s' dst:'%s' in_port:'%s'", dpid, eth.src, eth.dst, in_port)
         token_id = None
@@ -208,7 +210,22 @@ class Carrier(app_manager.RyuApp):
         #else we need to need handle this sometime
 
             
-        if token_id != None or str(eth.src) == self.CONTROLLER_MAC or str(eth.src) == self.ROUTER_MAC or str(eth.src) == self.DHCP_SERVER_MAC:
+        if not (token_id != None or str(eth.src) == self.CONTROLLER_MAC or str(eth.src) == self.ROUTER_MAC or str(eth.src) == self.DHCP_SERVER_MAC):
+
+            self.logger.info("[ADMIN] Client '%s' is not a valid client!", eth.src)
+            
+            try:
+                arr = self.blacklist_mac_to_port[dpid][in_port]
+            except KeyError, e:
+                arr = []
+            
+            arr.append(eth.src)
+            self.blacklist_mac_to_port[dpid][in_port] = arr
+            self.logger.info("[ADMIN] Client '%s' is now in blacklist, dropping!", eth.src)
+            
+            return
+        
+        else:
             
             # if we get here then the mac address associated with this
             # packet is in fact in safe
@@ -236,15 +253,15 @@ class Carrier(app_manager.RyuApp):
                 
                 #index into authenticators
                 authenticators_id = pr.authenticatorlist_get_id(token_id)
-                self.logger.info("[ADMIN] authenticators_id = '%d'",authenticators_id)
+                self.logger.info("[ADMIN] authenticators_id = '%f'",authenticators_id)
                 
                 #index into network information
                 network_id = pr.network_get_id_viaAuth(authenticators_id)
-                self.logger.info("[ADMIN] network_id = '%d'",network_id)
+                self.logger.info("[ADMIN] network_id = '%f'",network_id)
                 
                 #get lan_type
                 lan_type = pr.network_get_lantype(network_id)
-                self.logger.info("[ADMIN] lan_type = '%d'",lan_type)
+                self.logger.info("[ADMIN] lan_type = '%s'",lan_type)
                 
                 #do stuff based on lan_type
                 #if lan_type == "DHCP":
@@ -252,166 +269,183 @@ class Carrier(app_manager.RyuApp):
                 #elif lan_type == "VLAN":
                     #blahblah
 
-
-        else:
-            ## else we have no awareness about who is trying to send this packet through our 
-            ## BRAS - drop it on the floor
-            self.logger.info("[ADMIN] Client '%s' is not a valid client!", eth.src)
-            return
-        
-        self.mac_to_port[dpid][eth.src] = in_port
+    
+            #else:
+                ## else we have no awareness about who is trying to send this packet through our 
+                ## BRAS - drop it on the floor
+            #    self.logger.info("[ADMIN] Client '%s' is not a valid client!", eth.src)
+            #    return None
+            
+            self.mac_to_port[dpid][eth.src] = in_port
+                    
+            d_pkt = packet.Packet(array.array('B', msg.data)) # detailed packet
+            
+            #dhcp_d = i.detect_dhcp_discover(pkt)
+            dhcp_o = i.detect_dhcp_offer(pkt)
+            #dhcp_r = i.detect_dhcp_request(pkt)
+            dhcp_a = i.detect_dhcp_ack(pkt)
+            dhcp_nak = i.detect_dhcp_nak(pkt)
+            #dhcp_dec = i.detect_dhcp_decline(pkt)
+            dhcp_rel = i.detect_dhcp_release(pkt)
+    
+    ##############################################################        
+            if eth.src == self.DHCP_SERVER_MAC and not DHCP_SERVER_DISCOVERED:
+                DHCP_SERVER_OUT_PORT = in_port
+                self.logger.info("[ADMIN] Discovered the local DHCP server source port on local bridge -> port %s",DHCP_SERVER_OUT_PORT)
+                self.mac_to_port[dpid][eth.src] = in_port
+                DHCP_SERVER_DISCOVERED = True
                 
-        d_pkt = packet.Packet(array.array('B', msg.data)) # detailed packet
-        
-        #dhcp_d = i.detect_dhcp_discover(pkt)
-        dhcp_o = i.detect_dhcp_offer(pkt)
-        #dhcp_r = i.detect_dhcp_request(pkt)
-        dhcp_a = i.detect_dhcp_ack(pkt)
-        dhcp_nak = i.detect_dhcp_nak(pkt)
-        #dhcp_dec = i.detect_dhcp_decline(pkt)
-        dhcp_rel = i.detect_dhcp_release(pkt)
+                #add all client -> server control flows once
+                if DHCP_SERVER_FLOW == False:      
+                    ## add control flows for dhcp messages
+                    self.logger.info("[ADMIN] Add DHCP control flows between DHCP Server and all clients")
+                    actions = [parser.OFPActionOutput(DHCP_SERVER_OUT_PORT)]
+                    match = parser.OFPMatch(eth_dst='ff:ff:ff:ff:ff:ff', eth_type=0x0800, ip_proto=17, udp_src=68, udp_dst=67)
+                    self.add_flow(datapath,200,match,actions)
+                    match = parser.OFPMatch(eth_dst=eth.src, eth_type=0x0800, ip_proto=17, udp_src=68, udp_dst=67) #eth_dst = DHCP server
+                    self.add_flow(datapath,200,match,actions)
+                    DHCP_SERVER_FLOW = True
+            
+    ##############################################################        
+            if eth.src == self.ROUTER_MAC and not WAN_ROUTER_DISCOVERED:
+                WAN_OUT_PORT = in_port
+                self.logger.info("[ADMIN] Discovered the WAN accessible port on local bridge -> port %s",WAN_OUT_PORT)
+                self.mac_to_port[dpid][eth.src] = in_port
+                WAN_ROUTER_DISCOVERED = True
+                
+    ##############################################################        
+            #if dhcp_d and DHCP_SERVER_DISCOVERED:
+                ## broadcast from client to server
+                ## forward the discovery to the server 
+                ## dhcp discovery will not be seen by ryu as these
+                ## packets already match existing control flows
+            
+    ##############################################################       
+            if dhcp_o and DHCP_SERVER_DISCOVERED:
+                ## direct from server to client
+                ## forward the ack to the client as a flow doesn't
+                ## yet exist for this
+                protocols = i.get_protocols(pkt) 
+                ipv4 = protocols['ipv4']
+                
+                if eth.dst in self.mac_to_port[dpid]:
+                    out_port = self.mac_to_port[dpid][eth.dst]
+                else:
+                    out_port = ofproto.OFPP_FLOOD
+                
+                blacklist = self.blacklist_mac_to_port[dpid]
+                for port in blacklist.keys():
+                    port_blacklist = self.blacklist_mac_to_port[dpid][port]
+                    if eth.dst in port_blacklist:
+                        self.logger.info("[ADMIN] Client '%s' is in blacklist, dropping!", eth.dst)
+                        return
+                
+                self.logger.info("[ADMIN] [DHCPO] DHCP Offer of '%s' sent from DHCP server to client destination MAC: '%s'", ipv4.dst, eth.dst)
+                
+                actions = [parser.OFPActionOutput(out_port)]
+    
+                data = None
+                
+                if msg.buffer_id == ofproto.OFP_NO_BUFFER:
+                    data = msg.data
+                
+                out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,in_port=in_port, actions=actions, data=data)
+                self.logger.info("dhcp_o -> packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
+                datapath.send_msg(out)
+    
+    ##############################################################
+            #if dhcp_r and DHCP_SERVER_DISCOVERED:
+                ## broadcast from client to server
+                ## forward the request to the server 
+                ## dhcp request will not be seen by ryu as these
+                ## packets already match existing control flows
+                
+    ##############################################################
+            if dhcp_a and DHCP_SERVER_DISCOVERED:
+                ## direct from server to client
+                ## forward the ack to the client as a flow doesn't
+                ## yet exist for this
+                protocols = i.get_protocols(pkt) 
+                ipv4 = protocols['ipv4']
 
-##############################################################        
-        if eth.src == self.DHCP_SERVER_MAC and not DHCP_SERVER_DISCOVERED:
-            DHCP_SERVER_OUT_PORT = in_port
-            self.logger.info("[ADMIN] Discovered the local DHCP server source port on local bridge -> port %s",DHCP_SERVER_OUT_PORT)
-            self.mac_to_port[dpid][eth.src] = in_port
-            DHCP_SERVER_DISCOVERED = True
-            
-            #add all client -> server control flows once
-            if DHCP_SERVER_FLOW == False:      
-                ## add control flows for dhcp messages
-                self.logger.info("[ADMIN] Add DHCP control flows between DHCP Server and all clients")
-                actions = [parser.OFPActionOutput(DHCP_SERVER_OUT_PORT)]
-                match = parser.OFPMatch(eth_dst='ff:ff:ff:ff:ff:ff', eth_type=0x0800, ip_proto=17, udp_src=68, udp_dst=67)
-                self.add_flow(datapath,200,match,actions)
-                match = parser.OFPMatch(eth_dst=eth.src, eth_type=0x0800, ip_proto=17, udp_src=68, udp_dst=67) #eth_dst = DHCP server
-                self.add_flow(datapath,200,match,actions)
-                DHCP_SERVER_FLOW = True
-        
-##############################################################        
-        if eth.src == self.ROUTER_MAC and not WAN_ROUTER_DISCOVERED:
-            WAN_OUT_PORT = in_port
-            self.logger.info("[ADMIN] Discovered the WAN accessible port on local bridge -> port %s",WAN_OUT_PORT)
-            self.mac_to_port[dpid][eth.src] = in_port
-            WAN_ROUTER_DISCOVERED = True
-            
-##############################################################        
-        #if dhcp_d and DHCP_SERVER_DISCOVERED:
-            ## broadcast from client to server
-            ## forward the discovery to the server 
-            ## dhcp discovery will not be seen by ryu as these
-            ## packets already match existing control flows
-        
-##############################################################       
-        if dhcp_o and DHCP_SERVER_DISCOVERED:
-            ## direct from server to client
-            ## forward the ack to the client as a flow doesn't
-            ## yet exist for this
-            protocols = i.get_protocols(pkt) 
-            ipv4 = protocols['ipv4']
-            self.logger.info("[ADMIN] [DHCPO] DHCP Offer of '%s' sent from DHCP server to client destination MAC: '%s'", ipv4.dst, eth.dst)
-            
-            if eth.dst in self.mac_to_port[dpid]:
-                out_port = self.mac_to_port[dpid][eth.dst]
-            else:
-                out_port = ofproto.OFPP_FLOOD
-
-            actions = [parser.OFPActionOutput(out_port)]
-
-            data = None
-            
-            if msg.buffer_id == ofproto.OFP_NO_BUFFER:
-                data = msg.data
-            
-            out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,in_port=in_port, actions=actions, data=data)
-            self.logger.info("dhcp_o -> packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
-            datapath.send_msg(out)
-
-##############################################################
-        #if dhcp_r and DHCP_SERVER_DISCOVERED:
-            ## broadcast from client to server
-            ## forward the request to the server 
-            ## dhcp request will not be seen by ryu as these
-            ## packets already match existing control flows
-            
-##############################################################
-        if dhcp_a and DHCP_SERVER_DISCOVERED:
-            ## direct from server to client
-            ## forward the ack to the client as a flow doesn't
-            ## yet exist for this
-            protocols = i.get_protocols(pkt) 
-            ipv4 = protocols['ipv4']
-            self.logger.info("[ADMIN] [DHCPA] DHCP Ack sent from DHCP server to client destination MAC: '%s'", eth.dst)
-
-            if eth.dst in self.mac_to_port[dpid]:
-                out_port = self.mac_to_port[dpid][eth.dst]
-            else:
-                out_port = ofproto.OFPP_FLOOD
-
-            actions = [parser.OFPActionOutput(out_port)]
-
-            data = None
-            
-            if msg.buffer_id == ofproto.OFP_NO_BUFFER:
-                data = msg.data
-            
-            out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,in_port=in_port, actions=actions, data=data)
-            self.logger.info("dhcp_a -> packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
-            datapath.send_msg(out)
-            
-            ## create WAN-accessible flows here
-            ## client --> WAN
-            self.logger.info("[ADMIN] Adding WAN-accessible flow for client '%s'", eth.dst)
-            actions = [parser.OFPActionOutput(WAN_OUT_PORT)]    
-            match = parser.OFPMatch(in_port=self.mac_to_port[dpid][eth.dst], eth_src=eth.dst)
-            self.add_flow(datapath, 100, match, actions)
-            
-            ## WAN --> client
-            self.logger.info("[ADMIN] Adding WAN-->Client flow") 
-            actions = [parser.OFPActionOutput(self.mac_to_port[dpid][eth.dst])]
-            match = parser.OFPMatch(eth_dst=eth.dst)
-            self.add_flow(datapath,101,match,actions)
-
-            
-##############################################################            
-        if dhcp_nak and DHCP_SERVER_DISCOVERED:
-            ## broadcast from server to client
-            ## forward the nack to the client as a flow doesn't
-            ## yet exist for this
-            if eth.dst in self.mac_to_port[dpid]:
-                out_port = self.mac_to_port[dpid][eth.dst]
-            else:
-                out_port = ofproto.OFPP_FLOOD
-
-            actions = [parser.OFPActionOutput(out_port)]
-
-            data = None
-            
-            if msg.buffer_id == ofproto.OFP_NO_BUFFER:
-                data = msg.data
-            
-            out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,in_port=in_port, actions=actions, data=data)
-            self.logger.info("dhcp_nak -> packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
-            datapath.send_msg(out)
-            
-##############################################################
-        ##if dhcp_dec and DHCP_SERVER_DISCOVERED:
-            ## broadcast from client to server
-            ## forward the decline to the server 
-            ## dhcp declines will not be seen by ryu as these
-            ## packets already match existing control flows
-            
-
- ##############################################################           
-        if dhcp_rel and DHCP_SERVER_DISCOVERED:
-            ## direct packet to server from client
-            ## remove any WAN-accessible flows here
-            self.logger.info("[ADMIN] dhcp_rel Removing temporary flows between WAN and client '%s'", eth.dst)
-            ## client --> WAN
-            match = parser.OFPMatch(in_port=self.mac_to_port[dpid][eth.dst],eth_src=eth.dst)
-            self.delete_flow(datapath,100,match)
-            
-            ## WAN --> client
-            match = parser.OFPMatch(eth_dst=eth.dst)
-            self.delete_flow(datapath,101,match)
+                if eth.dst in self.mac_to_port[dpid]:
+                    out_port = self.mac_to_port[dpid][eth.dst]
+                else:
+                    out_port = ofproto.OFPP_FLOOD
+                
+                blacklist = self.blacklist_mac_to_port[dpid]
+                for port in blacklist.keys():
+                    port_blacklist = self.blacklist_mac_to_port[dpid][port]
+                    if eth.dst in port_blacklist:
+                        self.logger.info("[ADMIN] Client '%s' is in blacklist, dropping!", eth.dst)
+                        return
+                
+                self.logger.info("[ADMIN] [DHCPA] DHCP Ack sent from DHCP server to client destination MAC: '%s'", eth.dst)
+    
+                actions = [parser.OFPActionOutput(out_port)]
+    
+                data = None
+                
+                if msg.buffer_id == ofproto.OFP_NO_BUFFER:
+                    data = msg.data
+                
+                out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,in_port=in_port, actions=actions, data=data)
+                self.logger.info("dhcp_a -> packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
+                datapath.send_msg(out)
+                
+                ## create WAN-accessible flows here
+                ## client --> WAN
+                self.logger.info("[ADMIN] Adding WAN-accessible flow for client '%s'", eth.dst)
+                actions = [parser.OFPActionOutput(WAN_OUT_PORT)]    
+                match = parser.OFPMatch(in_port=self.mac_to_port[dpid][eth.dst], eth_src=eth.dst)
+                self.add_flow(datapath, 100, match, actions)
+                
+                ## WAN --> client
+                self.logger.info("[ADMIN] Adding WAN-->Client flow") 
+                actions = [parser.OFPActionOutput(self.mac_to_port[dpid][eth.dst])]
+                match = parser.OFPMatch(eth_dst=eth.dst)
+                self.add_flow(datapath,101,match,actions)
+    
+                
+    ##############################################################            
+            if dhcp_nak and DHCP_SERVER_DISCOVERED:
+                ## broadcast from server to client
+                ## forward the nack to the client as a flow doesn't
+                ## yet exist for this
+                if eth.dst in self.mac_to_port[dpid]:
+                    out_port = self.mac_to_port[dpid][eth.dst]
+                else:
+                    out_port = ofproto.OFPP_FLOOD
+    
+                actions = [parser.OFPActionOutput(out_port)]
+    
+                data = None
+                
+                if msg.buffer_id == ofproto.OFP_NO_BUFFER:
+                    data = msg.data
+                
+                out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,in_port=in_port, actions=actions, data=data)
+                self.logger.info("dhcp_nak -> packet out dpid:'%s' out_port:'%s'", datapath.id, in_port)
+                datapath.send_msg(out)
+                
+    ##############################################################
+            ##if dhcp_dec and DHCP_SERVER_DISCOVERED:
+                ## broadcast from client to server
+                ## forward the decline to the server 
+                ## dhcp declines will not be seen by ryu as these
+                ## packets already match existing control flows
+                
+    
+     ##############################################################           
+            if dhcp_rel and DHCP_SERVER_DISCOVERED:
+                ## direct packet to server from client
+                ## remove any WAN-accessible flows here
+                self.logger.info("[ADMIN] dhcp_rel Removing temporary flows between WAN and client '%s'", eth.dst)
+                ## client --> WAN
+                match = parser.OFPMatch(in_port=self.mac_to_port[dpid][eth.dst],eth_src=eth.dst)
+                self.delete_flow(datapath,100,match)
+                
+                ## WAN --> client
+                match = parser.OFPMatch(eth_dst=eth.dst)
+                self.delete_flow(datapath,101,match)
+    
