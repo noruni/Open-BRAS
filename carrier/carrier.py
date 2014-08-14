@@ -208,6 +208,7 @@ class Carrier(app_manager.RyuApp):
             token_id = pr.authenticator_get_token_id(str(eth.src))
 
         #else we need to need handle this sometime
+        ## TODO, See Trello card "Fix db connection failure"
 
             
         if not (token_id != None or str(eth.src) == self.CONTROLLER_MAC or str(eth.src) == self.ROUTER_MAC or str(eth.src) == self.DHCP_SERVER_MAC):
@@ -229,52 +230,48 @@ class Carrier(app_manager.RyuApp):
             
             # if we get here then the mac address associated with this
             # packet is in fact in safe
-            self.logger.info("[ADMIN] MAC Address '%s' is permitted", eth.src)   
+            #self.logger.info("[ADMIN] MAC Address '%s' is permitted", eth.src)   
 
             if token_id != None: #if client packet
-                self.logger.info("[ADMIN] Client '%s' is a customer in database!", eth.src)
+                #self.logger.info("[ADMIN] Client '%s' is a customer in database!", eth.src)
                 
                 ## detect port mismatch 
                 try:
                     #self.send_flow_stats_request(datapath,'eth_src',eth.src) ## matches src of client (priority 101)
                     #self.send_flow_stats_request(datapath,'eth_dst',eth.src) ## matches dst of client (priority 100)
-                    self.logger.info("[ADMIN] mac_to_port %s", self.mac_to_port[dpid][eth.src])
+                    #self.logger.info("[ADMIN] mac_to_port %s", self.mac_to_port[dpid][eth.src])
                     if self.mac_to_port[dpid][eth.src] != in_port:
                         self.logger.info("[ADMIN] Port mismatch between this eth.src %s and in_port %s; binding is %s", eth.src, in_port, self.mac_to_port[dpid][eth.src])
                         
                         ## replace the flows in the flow table for this client with new port
                         ## i.e. the host may have come up on a different port
+                        ## TODO, See Trello card "Fix flow mismatch edge case"
                         
                 except KeyError as e:
-                    self.logger.info("[ADMIN] mac_to_port currently unbound, first time mac seen")
+                    self.logger.info("[ADMIN] First time client '%s' seen - associating MAC with port %d",eth.src,in_port)
+
+                
+                #index into authenticators
+                authenticators_id = pr.authenticatorlist_get_id(token_id)
+                #self.logger.info("[ADMIN] authenticators_id = '%f'",authenticators_id)
+                
+                #index into network information
+                network_id = pr.network_get_id_viaAuth(authenticators_id)
+                #self.logger.info("[ADMIN] network_id = '%f'",network_id)
+                
+                #get lan_type
+                lan_type = pr.network_get_lantype(network_id)
+                #self.logger.info("[ADMIN] lan_type = '%s'",lan_type)
 
                 # so we have a confirmed client at this point
                 # how do we handle this particular client?
                 
-                #index into authenticators
-                authenticators_id = pr.authenticatorlist_get_id(token_id)
-                self.logger.info("[ADMIN] authenticators_id = '%f'",authenticators_id)
-                
-                #index into network information
-                network_id = pr.network_get_id_viaAuth(authenticators_id)
-                self.logger.info("[ADMIN] network_id = '%f'",network_id)
-                
-                #get lan_type
-                lan_type = pr.network_get_lantype(network_id)
-                self.logger.info("[ADMIN] lan_type = '%s'",lan_type)
-                
                 #do stuff based on lan_type
                 #if lan_type == "DHCP":
-                    #blah
+                    # handle DHCP connections
                 #elif lan_type == "VLAN":
-                    #blahblah
-
-    
-            #else:
-                ## else we have no awareness about who is trying to send this packet through our 
-                ## BRAS - drop it on the floor
-            #    self.logger.info("[ADMIN] Client '%s' is not a valid client!", eth.src)
-            #    return None
+                    # handle VLAN connections
+                    
             
             self.mac_to_port[dpid][eth.src] = in_port
                     
@@ -337,7 +334,7 @@ class Carrier(app_manager.RyuApp):
                 for port in blacklist.keys():
                     port_blacklist = self.blacklist_mac_to_port[dpid][port]
                     if eth.dst in port_blacklist:
-                        self.logger.info("[ADMIN] Client '%s' is in blacklist, dropping!", eth.dst)
+                        self.logger.info("[ADMIN] [DHCPO] Client '%s' is in blacklist, dropping!", eth.dst)
                         return
                 
                 self.logger.info("[ADMIN] [DHCPO] DHCP Offer of '%s' sent from DHCP server to client destination MAC: '%s'", ipv4.dst, eth.dst)
@@ -377,7 +374,7 @@ class Carrier(app_manager.RyuApp):
                 for port in blacklist.keys():
                     port_blacklist = self.blacklist_mac_to_port[dpid][port]
                     if eth.dst in port_blacklist:
-                        self.logger.info("[ADMIN] Client '%s' is in blacklist, dropping!", eth.dst)
+                        self.logger.info("[ADMIN] [DHCPA] Client '%s' is in blacklist, dropping!", eth.dst)
                         return
                 
                 self.logger.info("[ADMIN] [DHCPA] DHCP Ack sent from DHCP server to client destination MAC: '%s'", eth.dst)
