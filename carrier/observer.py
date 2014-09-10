@@ -27,16 +27,17 @@ class Observer(app_manager.RyuApp):
 
     def __init__(self, *args, **kwargs):
         super(Observer, self).__init__(*args, **kwargs)
+        self.portdb = None
+        self.vlandb = {}
         #Let's start implementing some configuration file support
         config = ConfigParser.RawConfigParser()
         configFileName = '/root/binaries/ryu/ryu/app/carrier/carrier.cfg'
+        vlansFileName = '/root/binaries/ryu/ryu/app/carrier/vlans.yml'
         self.logger.info("[ADMIN] (Observer) Loading configuration file [%s]" % (configFileName))
+        self.logger.info("[ADMIN] (Observer) Loading vlan configuration file [%s]" % (vlansFileName))
         config.read(configFileName)
         
-        self.portdb = None
-        self.vlandb = {}
-        
-        with open('/root/binaries/ryu/ryu/app/carrier/vlans.yml', 'r') as stream:
+        with open(vlansFileName, 'r') as stream:
             self.portdb = yaml.load(stream)
             
         for port in self.portdb:
