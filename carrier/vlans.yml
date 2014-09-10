@@ -1,5 +1,8 @@
 ---
 # hvid service values that we will accept on incoming packets
-1: {type: tagged, vlans: [11,22,33,44]}
-#2: {type: trunk, vlans: []}
-#3: {type: untagged, vlans: []}
+# LHS key is the port to which we assign the following vlan configurations
+# non-integer keys in used for ovs dynamic assignment; integer keys will return for real-world switches
+# incoming for service facing ports
+incoming: {type: trunk, vlans: [11,22,33,44]}
+# outgoing for intra-core ports
+outgoing: {type: tagged, vlans: [1600]}
